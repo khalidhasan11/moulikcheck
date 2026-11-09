@@ -1,0 +1,23 @@
+=== TEST 1: COPY TEST (10 copied from Library + 10 original, interleaved) ===
+Copied sentences flagged: 10/10 (exact: 10)
+Original sentences falsely flagged: 0/10
+Summary: risk 49.1% band High
+
+=== TEST 2: SLIDE TEST (5 sentences copied from fake slide file in Library + 2 original distractors) ===
+Slide sentences flagged: 5/5; with correct source name: 5
+Distractor originals falsely flagged: 0/2
+
+=== TEST 3: PARAPHRASE TEST (5 lightly-to-heavily paraphrased sentences vs source in Library) ===
+Honest expectation: light ones should flag yellow, the hard one may be missed. Whatever happens is recorded.
+  [easy] status=similar similarity=0.67 :: Digital marketing helps small businesses reach customers around the world through social media platforms at a much lower cost than traditional advertising methods.
+  [easy-medium] status=exact similarity=0.82 :: Customer satisfaction grows significantly when companies reply quickly to complaints and give clear information about products, services and delivery timelines.
+  [medium] status=similar similarity=0.69 :: The marketing mix includes product, price, place and promotion and managers should balance these components carefully to deliver value for their target customers.
+  [medium-hard] status=similar similarity=0.52 :: Workers who receive proper training deliver better service because they understand what customers need and can resolve problems independently without supervisor approval.
+  [hard] status=original similarity=0.13 :: People keep returning to a company they trust when every purchase feels reliable, reasonably priced and pleasant from beginning to end.
+Result: similar(yellow)=3, exact(red)=1, missed=1 out of 5
+
+=== TEST 4: CLEAN TEST (10 fully original sentences vs full Library) ===
+Risk: 0% (band Low) — target: Low band
+False positives: 0/10
+
+NOTE: These are synthetic fixtures built for V1 verification, not real Wikipedia text or a real HRM slide deck (per task constraints). They test the engine mechanics honestly; real-world rates will vary and the plan's accuracy table remains an estimate, not a guarantee.

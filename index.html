@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MoulikCheck — Free Plagiarism Risk Checker (V1)</title>
+<link rel="stylesheet" href="./style.css">
+<!-- PDF / DOCX reading via CDN. If a CDN fails, .txt and paste still work — see app.js fallbacks. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>MoulikCheck <span class="v">V1</span></h1>
+  <p class="tag">Free &amp; unlimited plagiarism <b>risk</b> checker — আপনার assignment, submit করার আগে check করুন</p>
+  <p class="privacy">🔒 Everything runs in your browser. Your file is never uploaded anywhere.</p>
+</header>
+
+<main>
+  <section class="card" id="check-card">
+    <h2>1. Your assignment / আপনার লেখা</h2>
+    <div id="drop-zone" class="drop">Drop a .txt / .docx / .pdf file here, or use the button below</div>
+    <input type="file" id="main-file" accept=".txt,.docx,.pdf">
+    <p id="main-file-status" class="status"></p>
+    <label for="main-text">…or paste your text here</label>
+    <textarea id="main-text" rows="10" placeholder="Paste your assignment text here…"></textarea>
+    <p class="counts"><span id="word-count">0 words</span> · <span id="sentence-count">0 sentences</span></p>
+    <label class="check"><input type="checkbox" id="opt-strip-refs" checked> Remove References / Bibliography section before checking</label>
+    <label class="check"><input type="checkbox" id="opt-exclude-quoted" checked> Exclude properly "double-quoted" sentences from risk</label>
+    <button id="check-btn" class="primary">Check Now / Check করুন</button>
+    <p id="check-warning" class="warn"></p>
+  </section>
+
+  <section class="card" id="library-card">
+    <h2>2. Library / Source library</h2>
+    <p class="hint">Add your course slides, chapters, past assignments — your text is checked against these. <b>Without a Library, only self-duplication is checked</b> (plus one-click web search per sentence in the report). Library is saved in this browser only.</p>
+    <div id="lib-drop-zone" class="drop small">Drop Library .txt / .docx / .pdf files here</div>
+    <input type="file" id="lib-file" accept=".txt,.docx,.pdf" multiple>
+    <p id="lib-file-status" class="status"></p>
+    <label for="lib-paste-name">…or paste a source text</label>
+    <input type="text" id="lib-paste-name" placeholder="Name for pasted source, e.g. Chapter 5 notes">
+    <textarea id="lib-paste-text" rows="4" placeholder="Paste source / slide text here…"></textarea>
+    <button id="lib-add-paste" class="secondary">Add pasted text to Library</button>
+    <p id="lib-storage-warning" class="warn"></p>
+    <ul id="lib-list"></ul>
+  </section>
+
+  <section class="card hidden" id="result-card">
+    <h2>3. Result / ফলাফল</h2>
+    <div class="score-row">
+      <div class="score-big"><span id="risk-pct">–</span><small>Total Risk %</small></div>
+      <div class="score-parts">
+        <p>🔴 Exact: <b id="exact-pct">–</b></p>
+        <p>🟡 Similar: <b id="similar-pct">–</b></p>
+        <p>🟢 Original: <b id="original-pct">–</b></p>
+        <p>Band: <b id="band">–</b> <span class="hint">(0–10 Low · 11–25 Medium · 26+ High)</span></p>
+      </div>
+    </div>
+    <p class="disclaimer" id="disclaimer"></p>
+    <div class="filters">
+      Show:
+      <button data-filter="all" class="filter active">All</button>
+      <button data-filter="exact" class="filter">🔴 Exact</button>
+      <button data-filter="similar" class="filter">🟡 Similar</button>
+      <button data-filter="original" class="filter">🟢 Original</button>
+    </div>
+    <div id="report" class="report"></div>
+    <div class="actions">
+      <button id="export-btn" class="secondary">Download report (HTML)</button>
+      <button id="print-btn" class="secondary">Print</button>
+    </div>
+  </section>
+
+  <aside class="card hidden" id="detail-card">
+    <h2>Sentence detail</h2>
+    <div id="detail-body"><p class="hint">Click any highlighted sentence in the report to see its match here.</p></div>
+  </aside>
+
+  <section class="card" id="about-card">
+    <h2>About &amp; Limits — honest accuracy / সত্যটা জানুন</h2>
+    <p><b>This is NOT 100% accurate, and it is NOT a Turnitin prediction.</b> No checker in the world is 100% — Turnitin's power is a private database built over decades that no free tool can access. A green result means <i>no risk was found by these checks</i>, nothing more.</p>
+    <table>
+      <tr><th>Type</th><th>Expected catch</th><th>Why</th></tr>
+      <tr><td>Copy-paste from website / Wikipedia</td><td>High — 85–95%</td><td>Exact match + quoted web-search link finds it</td></tr>
+      <tr><td>Copy from course slides / chapter PDF</td><td>High — 90%+ if the slide is in your Library</td><td>Direct comparison with your own files</td></tr>
+      <tr><td>Copy from another student's assignment</td><td>High — 90%+ if that file is in your Library</td><td>Direct file-to-file comparison</td></tr>
+      <tr><td>Light paraphrase</td><td>Medium — 60–75%</td><td>Word-overlap / TF-IDF similarity flags it yellow</td></tr>
+      <tr><td>Heavy paraphrase / idea plagiarism</td><td>Low–Medium — 30–50%</td><td>No free tool guarantees this; semantic check is V2</td></tr>
+      <tr><td>Translated plagiarism</td><td>Low</td><td>Cross-language detection is an unsolved problem</td></tr>
+      <tr><td>Properly quoted + cited text</td><td>Should be 0% risk</td><td>Quoted sentences are excluded (toggle above)</td></tr>
+    </table>
+    <p class="hint">How V1 works: Layer 1 = exact 8-word matching + TF-IDF similarity against your Library and the document itself. Layer 3 = one-click quoted Google search per sentence so you can verify web matches yourself. Layer 2 (semantic AI) is <b>not</b> in V1 — it is planned for V2.</p>
+  </section>
+</main>
+
+<footer>
+  <p>MoulikCheck V1 · Free forever · No account · No backend · Your Library lives only in this browser (localStorage) — clearing browser data removes it.</p>
+</footer>
+
+<script src="./engine.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>

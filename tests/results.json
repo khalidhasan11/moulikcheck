@@ -1,0 +1,538 @@
+{
+  "generatedAt": "2026-11-09T15:55:21.362Z",
+  "thresholds": {
+    "SHINGLE_SIZE": 8,
+    "SIMILAR_THRESHOLD": 0.5,
+    "SELF_DUP_COSINE": 0.95,
+    "SIMILAR_WEIGHT": 0.6,
+    "BAND_LOW_MAX": 10,
+    "BAND_MEDIUM_MAX": 25
+  },
+  "tests": {
+    "copyTest": {
+      "copiedTotal": 10,
+      "copiedFlagged": 10,
+      "copiedExact": 10,
+      "originalTotal": 10,
+      "falsePositives": 0,
+      "falsePositiveDetails": [],
+      "summary": {
+        "totalWords": 430,
+        "scoredWords": 430,
+        "sentenceCount": 20,
+        "exactWords": 211,
+        "similarWords": 0,
+        "originalWords": 219,
+        "quotedWords": 0,
+        "exactPct": 49.1,
+        "similarPct": 0,
+        "originalPct": 50.9,
+        "totalRisk": 49.1,
+        "band": "High",
+        "referencesStripped": false,
+        "librarySentenceCount": 10,
+        "libraryDocCount": 1,
+        "disclaimer": "This is a risk estimate from MoulikCheck V1 (exact + similarity checks against your Library, plus one-click web verification). It is NOT a Turnitin prediction and NOT 100% accurate. A low score means no risk was found by these checks — it does not guarantee any other checker will give the same result."
+      },
+      "perSentence": [
+        {
+          "index": 0,
+          "label": "copied",
+          "expectedText": "Digital marketing allows small businesses to reach global customers through social media platforms at a relatively low cost compared with traditional advertising methods.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 1,
+          "label": "original",
+          "expectedText": "Yesterday morning I missed the university bus because heavy rain flooded the narrow road beside our neighbourhood market for almost one hour.",
+          "status": "original",
+          "similarity": 0.1,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 2,
+          "label": "copied",
+          "expectedText": "Customer satisfaction increases significantly when companies respond quickly to complaints and provide clear information about products, services and delivery timelines.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 3,
+          "label": "original",
+          "expectedText": "My grandmother cooks a special fish curry with mustard seeds, green chillies and fresh coriander whenever our whole family visits her village home.",
+          "status": "original",
+          "similarity": 0.07,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 4,
+          "label": "copied",
+          "expectedText": "The marketing mix consists of product price place and promotion and managers must balance these elements to create value for target customers.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 5,
+          "label": "original",
+          "expectedText": "During the semester break my friends and I played cricket every afternoon on the small field behind the local primary school building.",
+          "status": "original",
+          "similarity": 0.13,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 6,
+          "label": "copied",
+          "expectedText": "Employee training improves service quality because trained workers understand customer needs better and can solve problems without waiting for supervisor approval.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 7,
+          "label": "original",
+          "expectedText": "I bought a second hand bicycle last month and now ride it to the library every evening to save money on rickshaw fares.",
+          "status": "original",
+          "similarity": 0.09,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 8,
+          "label": "copied",
+          "expectedText": "Brand loyalty develops over time when customers repeatedly receive consistent quality, fair prices and positive experiences across every interaction with the company.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 9,
+          "label": "original",
+          "expectedText": "The ferry journey across the wide river took nearly three hours because thick fog forced the captain to move very slowly.",
+          "status": "original",
+          "similarity": 0.12,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 10,
+          "label": "copied",
+          "expectedText": "Market research helps organisations identify changing consumer preferences before competitors notice the same trends in purchasing behaviour and lifestyle patterns.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 11,
+          "label": "original",
+          "expectedText": "My younger sister is learning to play the harmonium and practises old folk songs with her music teacher every Friday afternoon.",
+          "status": "original",
+          "similarity": 0.12,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 12,
+          "label": "copied",
+          "expectedText": "Effective leadership communication reduces workplace conflict by setting clear expectations, listening carefully to employee concerns and providing regular constructive feedback.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 13,
+          "label": "original",
+          "expectedText": "We planted mango and guava saplings along the boundary wall of our house and water them carefully during the dry winter season.",
+          "status": "original",
+          "similarity": 0.15,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 14,
+          "label": "copied",
+          "expectedText": "Supply chain disruptions increase production costs when raw material prices rise suddenly and factories cannot find alternative suppliers quickly enough.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 15,
+          "label": "original",
+          "expectedText": "The documentary film we watched last night followed a young photographer travelling through mountain villages in search of disappearing traditional crafts.",
+          "status": "original",
+          "similarity": 0.12,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 16,
+          "label": "copied",
+          "expectedText": "Financial planning enables families to manage monthly expenses, build emergency savings and avoid high interest loans during periods of unexpected income loss.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 17,
+          "label": "original",
+          "expectedText": "Cooking rice for fifteen guests taught me how difficult it is to judge the right amount of water without any measuring cup.",
+          "status": "original",
+          "similarity": 0.11,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 18,
+          "label": "copied",
+          "expectedText": "Online education platforms give rural students access to qualified teachers, recorded lectures and interactive exercises that local institutions cannot always provide.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 19,
+          "label": "original",
+          "expectedText": "Our neighbourhood club organised a blood donation camp on Saturday and more than eighty young volunteers participated in the day long programme.",
+          "status": "original",
+          "similarity": 0.08,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        }
+      ]
+    },
+    "slideTest": {
+      "slideTotal": 5,
+      "flagged": 5,
+      "withCorrectSource": 5,
+      "distractorsFalselyFlagged": 0,
+      "summary": {
+        "totalWords": 146,
+        "scoredWords": 146,
+        "sentenceCount": 7,
+        "exactWords": 101,
+        "similarWords": 0,
+        "originalWords": 45,
+        "quotedWords": 0,
+        "exactPct": 69.2,
+        "similarPct": 0,
+        "originalPct": 30.8,
+        "totalRisk": 69.2,
+        "band": "High",
+        "referencesStripped": false,
+        "librarySentenceCount": 8,
+        "libraryDocCount": 1,
+        "disclaimer": "This is a risk estimate from MoulikCheck V1 (exact + similarity checks against your Library, plus one-click web verification). It is NOT a Turnitin prediction and NOT 100% accurate. A low score means no risk was found by these checks — it does not guarantee any other checker will give the same result."
+      },
+      "perSentence": [
+        {
+          "index": 0,
+          "label": "slide-copy",
+          "expectedText": "Performance appraisal is a systematic process through which managers evaluate employee achievements, behaviours and development needs during a defined review period.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 1,
+          "label": "slide-copy",
+          "expectedText": "Training needs assessment identifies the gap between current employee skills and the competencies required for effective performance in future organisational roles.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 2,
+          "label": "slide-copy",
+          "expectedText": "Rater errors such as halo effect and leniency bias can distort appraisal results and reduce trust in the entire evaluation system.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 3,
+          "label": "slide-copy",
+          "expectedText": "Feedback should be specific, timely and focused on observable behaviour rather than personal characteristics of the employee being evaluated.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 4,
+          "label": "slide-copy",
+          "expectedText": "Kirkpatrick model evaluates training effectiveness at four levels namely reaction, learning, behaviour and organisational results achieved after the programme.",
+          "status": "exact",
+          "similarity": 1,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 5,
+          "label": "original",
+          "expectedText": "Reflecting on this semester, I realise my presentation skills improved mainly because I practised aloud at home before every single class demonstration.",
+          "status": "original",
+          "similarity": 0.04,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 6,
+          "label": "original",
+          "expectedText": "The first time I travelled alone by train to my uncle's town, I kept checking the station names nervously after every brief stop.",
+          "status": "original",
+          "similarity": 0.08,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        }
+      ]
+    },
+    "paraphraseTest": {
+      "total": 5,
+      "flaggedSimilar": 3,
+      "flaggedExact": 1,
+      "missed": 1,
+      "summary": {
+        "totalWords": 109,
+        "scoredWords": 109,
+        "sentenceCount": 5,
+        "exactWords": 20,
+        "similarWords": 68,
+        "originalWords": 21,
+        "quotedWords": 0,
+        "exactPct": 18.3,
+        "similarPct": 62.4,
+        "originalPct": 19.3,
+        "totalRisk": 55.8,
+        "band": "High",
+        "referencesStripped": false,
+        "librarySentenceCount": 10,
+        "libraryDocCount": 1,
+        "disclaimer": "This is a risk estimate from MoulikCheck V1 (exact + similarity checks against your Library, plus one-click web verification). It is NOT a Turnitin prediction and NOT 100% accurate. A low score means no risk was found by these checks — it does not guarantee any other checker will give the same result."
+      },
+      "perSentence": [
+        {
+          "index": 0,
+          "label": "paraphrase",
+          "expectedText": "Digital marketing helps small businesses reach customers around the world through social media platforms at a much lower cost than traditional advertising methods.",
+          "status": "similar",
+          "similarity": 0.67,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine",
+          "flagged": true
+        },
+        {
+          "index": 1,
+          "label": "paraphrase",
+          "expectedText": "Customer satisfaction grows significantly when companies reply quickly to complaints and give clear information about products, services and delivery timelines.",
+          "status": "exact",
+          "similarity": 0.82,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "8-word-shingle",
+          "flagged": true
+        },
+        {
+          "index": 2,
+          "label": "paraphrase",
+          "expectedText": "The marketing mix includes product, price, place and promotion and managers should balance these components carefully to deliver value for their target customers.",
+          "status": "similar",
+          "similarity": 0.69,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine",
+          "flagged": true
+        },
+        {
+          "index": 3,
+          "label": "paraphrase",
+          "expectedText": "Workers who receive proper training deliver better service because they understand what customers need and can resolve problems independently without supervisor approval.",
+          "status": "similar",
+          "similarity": 0.52,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine",
+          "flagged": true
+        },
+        {
+          "index": 4,
+          "label": "paraphrase",
+          "expectedText": "People keep returning to a company they trust when every purchase feels reliable, reasonably priced and pleasant from beginning to end.",
+          "status": "original",
+          "similarity": 0.13,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        }
+      ]
+    },
+    "cleanTest": {
+      "total": 10,
+      "falsePositives": 0,
+      "falsePositiveDetails": [],
+      "summary": {
+        "totalWords": 221,
+        "scoredWords": 221,
+        "sentenceCount": 10,
+        "exactWords": 0,
+        "similarWords": 0,
+        "originalWords": 221,
+        "quotedWords": 0,
+        "exactPct": 0,
+        "similarPct": 0,
+        "originalPct": 100,
+        "totalRisk": 0,
+        "band": "Low",
+        "referencesStripped": false,
+        "librarySentenceCount": 18,
+        "libraryDocCount": 2,
+        "disclaimer": "This is a risk estimate from MoulikCheck V1 (exact + similarity checks against your Library, plus one-click web verification). It is NOT a Turnitin prediction and NOT 100% accurate. A low score means no risk was found by these checks — it does not guarantee any other checker will give the same result."
+      },
+      "perSentence": [
+        {
+          "index": 0,
+          "label": "original",
+          "expectedText": "Reflecting on this semester, I realise my presentation skills improved mainly because I practised aloud at home before every single class demonstration.",
+          "status": "original",
+          "similarity": 0.04,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 1,
+          "label": "original",
+          "expectedText": "The first time I travelled alone by train to my uncle's town, I kept checking the station names nervously after every brief stop.",
+          "status": "original",
+          "similarity": 0.11,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 2,
+          "label": "original",
+          "expectedText": "Preparing the family budget with my father showed me how many small daily purchases quietly add up by the end of each month.",
+          "status": "original",
+          "similarity": 0.07,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 3,
+          "label": "original",
+          "expectedText": "I still remember the evening our electricity went out during a storm and neighbours gathered on the rooftop sharing stories under torchlight.",
+          "status": "original",
+          "similarity": 0.11,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 4,
+          "label": "original",
+          "expectedText": "Learning to type without looking at the keyboard took me almost six weeks of patient practice for twenty minutes every morning.",
+          "status": "original",
+          "similarity": 0.11,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 5,
+          "label": "original",
+          "expectedText": "My part time tutoring job taught me that children lose attention quickly unless lessons include short activities, stories and frequent small questions.",
+          "status": "original",
+          "similarity": 0.06,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 6,
+          "label": "original",
+          "expectedText": "When our class picnic bus broke down near the highway restaurant, everyone stayed calm and helped the driver arrange another vehicle patiently.",
+          "status": "original",
+          "similarity": 0.08,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 7,
+          "label": "original",
+          "expectedText": "Growing chillies on our small balcony surprised me because the plants needed far less water than the gardening videos had suggested earlier.",
+          "status": "original",
+          "similarity": 0.13,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 8,
+          "label": "original",
+          "expectedText": "I decided to keep a handwritten diary this year so that I can notice how my worries change from one month to another.",
+          "status": "original",
+          "similarity": 0.08,
+          "sourceName": "Web_Articles_Collection.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        },
+        {
+          "index": 9,
+          "label": "original",
+          "expectedText": "The old bookshop near the station sells rare poetry collections that students often borrow notes from but rarely purchase for themselves.",
+          "status": "original",
+          "similarity": 0.12,
+          "sourceName": "HRM301_Chapter5_Slides.txt",
+          "method": "tfidf-cosine-below-threshold",
+          "flagged": false
+        }
+      ]
+    }
+  }
+}
