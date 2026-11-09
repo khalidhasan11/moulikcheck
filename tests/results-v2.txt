@@ -1,0 +1,27 @@
+=== Test W: Wikipedia (REAL, live API) ===
+Live article: "Photosynthesis" — using 5 real sentences (316 sentences in extract).
+Wikipedia stage: {"source":"Wikipedia","status":"partial","queries":8,"matched":4,"detail":"2 Wikipedia request(s) failed (last: Wikipedia search HTTP 429)"}
+  W1: exact | correctArticle=true | Wikipedia — Photosynthesis
+  W2: exact | correctArticle=true | Wikipedia — Photosynthesis
+  W3: exact | correctArticle=true | Wikipedia — Photosynthesis
+  W4: exact | correctArticle=true | Wikipedia — Photosynthesis
+  W5: original | correctArticle=false | —
+  Originals falsely flagged: 0/5
+  Doc risk after Wikipedia stage: 41% (High)
+=== Test A1: Crossref smoke (REAL) ===
+  Crossref responded OK, parsed 5 results. First: "Understanding Performance Appraisal" https://doi.org/10.4324/9781315626529-2
+=== Test A2: Semantic Scholar smoke (REAL) ===
+  S2 attempt 1 failed: Semantic Scholar rate-limited (HTTP 429) — shared no-key pool exhausted; try again later
+  S2 attempt 2 failed: Semantic Scholar rate-limited (HTTP 429) — shared no-key pool exhausted; try again later
+=== Test L: Library slide regression (V1 fixture) ===
+  Slide: flagged 5/5, correct source 5/5, distractor FPs 0/2, risk 69.2%
+=== Test C: Clean originals vs V1 Library (offline) ===
+  Clean: risk 0% (Low), false positives 0/10
+=== Test S: Exclude small matches (minMatchWords) ===
+  Shared run = 6 words; minMatchWords=8 -> original (expected original); minMatchWords=5 -> exact
+=== Test D: Source D unit-level (no key available) ===
+  Serper req: https://google.serper.dev/search POST keyHeader=true
+  Tavily req: https://api.tavily.com/search POST bearer=true
+  No-key states: serper=not-enabled, tavily=not-enabled, webStage=not-enabled (queries=0)
+  classifyUrl: {"reddit":"forum","facebook":"social","bbc":"website","wikipedia":"wikipedia","doi":"academic"}
+  Live Source D with a real key: UNTESTED (no key available)

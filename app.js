@@ -1,22 +1,58 @@
-/* MoulikCheck app.js — UI layer. All checking logic lives in engine.js.
+/* MoulikCheck app.js — V2 UI layer.
+ * Checking logic: engine.js (matching) + sources.js (internet stages).
  * File reading: .txt natively; .docx via Mammoth (CDN); .pdf via PDF.js (CDN).
  * If a CDN failed to load, DOCX/PDF show a clear fallback message and
  * .txt / paste keep working — nothing is faked.
+ * Keys for Source D live ONLY in localStorage on this device.
  */
 (function () {
   'use strict';
   var E = window.MoulikEngine;
-  var LS_KEY = 'moulikcheck_library_v1';
-  var LS_LIMIT = 4500000; // ~4.5 MB guard for localStorage
+  var S = window.MoulikSources;
+  var LS_LIB_V2 = 'moulikcheck_library_v2';
+  var LS_LIB_V1 = 'moulikcheck_library_v1'; // migrated read-only if V2 empty
+  var LS_SETTINGS = 'moulikcheck_v2_settings';
+  var LS_PRIVACY = 'moulikcheck_v2_privacy_ack';
+  var LS_LIMIT = 4500000;
   var library = [];
   var lastResult = null;
+  var lastSourceStatus = [];
+  var lastWebQueries = 0;
+  var cancelFlag = { cancelled: false };
+  var PALETTE = ['#f5b7b1', '#f9e79f', '#aed6f1', '#a9dfbf', '#d2b4de', '#f5cba7', '#a3e4db', '#f1948a', '#85c1e9', '#f8c471', '#82e0aa', '#bb8fce', '#f0b27a', '#7fb3d5'];
+  var sourceColors = {}; // source key -> colour
 
   function $(id) { return document.getElementById(id); }
   function esc(s) {
-    return String(s || '').replace(/[&<>"']/g, function (c) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+  function sourceKeyOf(m) { return (m.sourceName || 'Source') + '|' + (m.sourceUrl || ''); }
+
+  // ---------- Settings ----------
+  function loadSettings() {
+    var st = {};
+    try { st = JSON.parse(localStorage.getItem(LS_SETTINGS) || '{}') || {}; } catch (e) { st = {}; }
+    $('key-serper').value = st.serper || '';
+    $('key-tavily').value = st.tavily || '';
+    if (st.webCap) $('opt-web-cap').value = st.webCap;
+    return st;
+  }
+  function currentSettings() {
+    return {
+      serper: $('key-serper').value.trim(),
+      tavily: $('key-tavily').value.trim(),
+      webCap: Math.max(1, parseInt($('opt-web-cap').value, 10) || 30)
+    };
+  }
+  $('settings-save').addEventListener('click', function () {
+    try {
+      localStorage.setItem(LS_SETTINGS, JSON.stringify(currentSettings()));
+      $('settings-status').textContent = 'Saved on this device. Whole-web check is ' +
+        (currentSettings().serper || currentSettings().tavily ? 'ENABLED.' : 'not enabled (no key).');
+    } catch (e) { $('settings-status').textContent = '⚠ Could not save settings in this browser.'; }
+  });
 
   // ---------- File extraction ----------
   function setStatus(id, msg) { $(id).textContent = msg || ''; }
@@ -83,19 +119,20 @@
     try {
       var json = JSON.stringify(library);
       if (json.length > LS_LIMIT) {
-        $('lib-storage-warning').textContent = '⚠ Library is too large for browser storage (' + Math.round(json.length / 1024) + ' KB) — it will work for this session but may NOT be saved. Remove large files, or keep them under a few MB of text in total.';
-        try { localStorage.setItem(LS_KEY, json); } catch (e) { /* session-only */ }
+        $('lib-storage-warning').textContent = '⚠ Library is too large for browser storage (' + Math.round(json.length / 1024) + ' KB) — it will work for this session but may NOT be saved. Remove large files.';
+        try { localStorage.setItem(LS_LIB_V2, json); } catch (e) { /* session-only */ }
         return;
       }
       $('lib-storage-warning').textContent = '';
-      localStorage.setItem(LS_KEY, json);
+      localStorage.setItem(LS_LIB_V2, json);
     } catch (e) {
       $('lib-storage-warning').textContent = '⚠ Could not save Library in this browser (storage full/blocked). It will work for this session only.';
     }
   }
   function loadLibrary() {
     try {
-      var raw = localStorage.getItem(LS_KEY);
+      var raw = localStorage.getItem(LS_LIB_V2);
+      if (!raw) raw = localStorage.getItem(LS_LIB_V1); // V1 -> V2 migration on same origin
       if (raw) library = JSON.parse(raw) || [];
     } catch (e) { library = []; }
   }
@@ -143,19 +180,117 @@
     $('lib-paste-text').value = ''; $('lib-paste-name').value = '';
   });
 
-  // ---------- Checking ----------
-  $('check-btn').addEventListener('click', function () {
+  // ---------- Privacy notice ----------
+  function privacyGate() {
+    return new Promise(function (resolve) {
+      var ack = false;
+      try { ack = !!localStorage.getItem(LS_PRIVACY); } catch (e) { ack = false; }
+      if (ack) { resolve(false); return; }
+      $('privacy-notice').classList.remove('hidden');
+      $('privacy-accept').onclick = function () {
+        try { localStorage.setItem(LS_PRIVACY, '1'); } catch (e) {}
+        $('privacy-notice').classList.add('hidden');
+        resolve(false);
+      };
+      $('privacy-offline').onclick = function () {
+        $('privacy-notice').classList.add('hidden');
+        $('opt-offline').checked = true;
+        resolve(true);
+      };
+    });
+  }
+
+  // ---------- Checking pipeline ----------
+  function setProgress(stageIdx, totalStages, label, fracWithin) {
+    $('progress-wrap').classList.remove('hidden');
+    $('stage-label').textContent = label;
+    var pct = Math.round(((stageIdx + (fracWithin || 0)) / totalStages) * 100);
+    $('progress-bar').style.width = Math.min(100, pct) + '%';
+    $('query-counter').textContent = 'Whole-web queries used in this check so far: ' + lastWebQueries;
+  }
+
+  $('cancel-btn').addEventListener('click', function () { cancelFlag.cancelled = true; });
+
+  $('check-btn').addEventListener('click', async function () {
     var text = $('main-text').value;
     if (E.tokenize(text).length < 20) { $('check-warning').textContent = '⚠ Please add at least ~20 words of text to check.'; return; }
-    $('check-warning').textContent = library.length ? '' :
-      'Note: your Library is empty, so only self-duplication inside this document can be flagged automatically. Every sentence still gets a one-click web-search link in its detail view.';
-    lastResult = E.analyzeDocument(text, library.map(function (d) { return { name: d.name, text: d.text }; }), {
-      stripReferences: $('opt-strip-refs').checked,
-      excludeQuoted: $('opt-exclude-quoted').checked
-    });
-    renderResult();
+    $('check-warning').textContent = '';
+    var offline = $('opt-offline').checked;
+    if (!offline) offline = await privacyGate();
+    var settings = currentSettings();
+    var minMatch = Math.max(1, parseInt($('opt-min-match').value, 10) || 8);
+    var engineOpts = { stripReferences: $('opt-strip-refs').checked, excludeQuoted: $('opt-exclude-quoted').checked, minMatchWords: minMatch };
+
+    cancelFlag = { cancelled: false };
+    $('check-btn').disabled = true;
+    $('cancel-btn').classList.remove('hidden');
+    lastSourceStatus = [];
+    lastWebQueries = 0;
+    var totalStages = offline ? 1 : 4;
+
+    try {
+      // Stage 1 — Library (offline)
+      setProgress(0, totalStages, 'Stage 1/' + totalStages + ' — Library (slides) check…', 0.5);
+      var base = E.analyzeDocument(text, library.map(function (d) { return { name: d.name, text: d.text }; }), engineOpts);
+      lastResult = { sentences: base.sentences, summary: base.summary };
+      lastSourceStatus.push({ source: 'Library (slides)', status: 'ok', detail: library.length ? 'Checked against ' + library.length + ' Library document(s), ' + base.summary.librarySentenceCount + ' sentences.' : 'Library is empty — only self-duplication could be checked in this stage.' });
+      renderResult();
+
+      if (!offline && !cancelFlag.cancelled) {
+        // Stage 2 — Wikipedia
+        var wiki = await S.runWikipediaStage(E, lastResult.sentences, {
+          minMatchWords: minMatch, isCancelled: function () { return cancelFlag.cancelled; },
+          onProgress: function (src, done, total) { setProgress(1, totalStages, 'Stage 2/' + totalStages + ' — Wikipedia check (' + done + '/' + total + ')…', total ? done / total : 0); }
+        });
+        lastSourceStatus.push(wiki);
+        refreshSummary(base.summary); renderResult();
+      }
+      if (!offline && !cancelFlag.cancelled) {
+        // Stage 3 — Academic (Crossref + Semantic Scholar)
+        var acad = await S.runAcademicStage(E, lastResult.sentences, {
+          minMatchWords: minMatch, isCancelled: function () { return cancelFlag.cancelled; },
+          onProgress: function (src, done, total) { setProgress(2, totalStages, 'Stage 3/' + totalStages + ' — Academic check: ' + src + ' (' + done + '/' + total + ')…', total ? done / total : 0); }
+        });
+        acad.forEach(function (st) { lastSourceStatus.push(st); });
+        refreshSummary(base.summary); renderResult();
+      }
+      if (!offline) {
+        // Stage 4 — Whole web (only if not cancelled; if cancelled, mark partial)
+        if (cancelFlag.cancelled) {
+          lastSourceStatus.push({ source: 'Whole web (Serper/Tavily)', status: 'partial', detail: 'Skipped — check was cancelled before this stage.' });
+        } else {
+          var web = await S.runWebStage(E, lastResult.sentences, {
+            serperKey: settings.serper, tavilyKey: settings.tavily, cap: settings.webCap,
+            minMatchWords: minMatch, isCancelled: function () { return cancelFlag.cancelled; },
+            onProgress: function (src, done, total) { lastWebQueries = done; setProgress(3, totalStages, 'Stage 4/' + totalStages + ' — ' + src + ' (' + done + '/' + total + ')…', total ? done / total : 0); }
+          });
+          lastWebQueries = web.queries;
+          lastSourceStatus.push(web);
+          refreshSummary(base.summary); renderResult();
+        }
+      } else {
+        lastSourceStatus.push({ source: 'Wikipedia', status: 'skipped', detail: 'Skipped — Offline only mode.' });
+        lastSourceStatus.push({ source: 'Crossref', status: 'skipped', detail: 'Skipped — Offline only mode.' });
+        lastSourceStatus.push({ source: 'Semantic Scholar', status: 'skipped', detail: 'Skipped — Offline only mode.' });
+        lastSourceStatus.push({ source: 'Whole web (Serper/Tavily)', status: 'skipped', detail: 'Skipped — Offline only mode.' });
+        renderResult();
+      }
+      setProgress(totalStages, totalStages, cancelFlag.cancelled ? 'Check cancelled — showing partial results.' : 'Check complete.', 0);
+    } catch (e) {
+      $('check-warning').textContent = '⚠ Check stopped: ' + e.message + ' (partial results, if any, are shown below)';
+      if (lastResult) renderResult();
+    } finally {
+      $('check-btn').disabled = false;
+      $('cancel-btn').classList.add('hidden');
+    }
   });
 
+  function refreshSummary(meta) {
+    var keep = { referencesStripped: meta.referencesStripped, librarySentenceCount: meta.librarySentenceCount, libraryDocCount: meta.libraryDocCount };
+    lastResult.summary = E.computeSummary(lastResult.sentences, keep);
+  }
+
+  // ---------- Rendering ----------
   function renderResult() {
     var r = lastResult, s = r.summary;
     $('result-card').classList.remove('hidden');
@@ -165,9 +300,38 @@
     $('similar-pct').textContent = s.similarPct + '%';
     $('original-pct').textContent = s.originalPct + '%';
     $('band').textContent = s.band;
+    $('web-queries-line').textContent = 'Whole-web queries used in this check: ' + lastWebQueries;
     $('disclaimer').textContent = '⚠ ' + s.disclaimer +
-      (s.referencesStripped ? ' A References/Bibliography section was detected and removed before scoring.' : '') +
-      ' Checked against ' + s.libraryDocCount + ' Library document(s) (' + s.librarySentenceCount + ' sentences).';
+      (s.referencesStripped ? ' A References/Bibliography section was detected and removed before scoring.' : '');
+
+    // Source status list — failures and not-enabled are always visible.
+    var ul = $('source-status');
+    ul.innerHTML = '';
+    lastSourceStatus.forEach(function (st) {
+      var li = document.createElement('li');
+      var icon = { ok: '✅', partial: '⚠️', failed: '❌', 'not-enabled': '🔑', skipped: '⏭️' }[st.status] || '•';
+      li.innerHTML = icon + ' <b>' + esc(st.source) + '</b> — ' + esc(st.status) + (st.detail ? ' · ' + esc(st.detail) : '');
+      ul.appendChild(li);
+    });
+
+    // Breakdown with per-source colours
+    var breakdown = E.sourceBreakdown(r.sentences);
+    sourceColors = {};
+    breakdown.forEach(function (src, i) { sourceColors[src.key] = PALETTE[i % PALETTE.length]; });
+    var bd = $('breakdown');
+    bd.innerHTML = breakdown.length ? '' : '<p class="hint">No matched sources — nothing was attributed to any source.</p>';
+    breakdown.forEach(function (src) {
+      var div = document.createElement('div');
+      div.className = 'src-card';
+      div.style.borderLeft = '8px solid ' + sourceColors[src.key];
+      var label = S.typeLabel(src.type);
+      div.innerHTML = '<b>' + esc(src.name) + '</b> <span class="tag">' + esc(label) + '</span><br>' +
+        '<span class="src-pct">' + src.pct + '%</span> of document · ' + src.sentences + ' sentence(s)' +
+        (src.url ? ' · <a href="' + esc(src.url) + '" target="_blank" rel="noopener">Open source</a>' : '');
+      div.addEventListener('click', function () { filterBySource(src.key); });
+      bd.appendChild(div);
+    });
+
     var rep = $('report');
     rep.innerHTML = '';
     rep.classList.remove('dim-nonmatch');
@@ -175,12 +339,22 @@
       var span = document.createElement('span');
       span.className = 's ' + sent.status;
       span.dataset.status = sent.status;
+      if (sent.bestMatch && (sent.status === 'exact' || sent.status === 'similar')) {
+        span.dataset.sourceKey = sourceKeyOf(sent.bestMatch);
+        var col = sourceColors[span.dataset.sourceKey];
+        if (col) span.style.background = sent.status === 'exact' ? col : col + '99';
+      }
       span.textContent = sent.text + ' ';
       span.title = sent.status.toUpperCase() + (sent.bestMatch && sent.status !== 'original' ? ' — ' + sent.bestMatch.sourceName : '');
       span.addEventListener('click', function () { showDetail(sent); });
       rep.appendChild(span);
     });
-    $('result-card').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function filterBySource(key) {
+    var rep = $('report');
+    rep.classList.add('dim-nonmatch');
+    rep.querySelectorAll('.s').forEach(function (sp) { sp.classList.toggle('f-match', sp.dataset.sourceKey === key); });
   }
 
   document.querySelectorAll('.filter').forEach(function (btn) {
@@ -201,16 +375,20 @@
     var html = '<p><b>Status:</b> ' + esc(sent.status.toUpperCase()) + ' · ' + sent.wordCount + ' words</p>';
     html += '<div class="side"><div class="box"><h4>Your sentence</h4><p>' + esc(sent.text) + '</p></div>';
     if (m && sent.status !== 'original') {
-      html += '<div class="box"><h4>Matched: ' + esc(m.sourceName) + ' (' + esc(m.method) + ', similarity ' + Math.round((m.similarity || 0) * 100) + '%' +
-        (m.shingleOverlap ? ', ' + m.shingleOverlap + ' exact 8-word match(es)' : '') + ')</h4><p>' + esc(m.sourceSentence) + '</p></div>';
+      html += '<div class="box"><h4>Matched: ' + esc(m.sourceName) + '</h4>' +
+        '<p><span class="tag">' + esc(S.typeLabel(m.sourceType)) + '</span> · method ' + esc(m.method) +
+        ', similarity ' + Math.round((m.similarity || 0) * 100) + '%' +
+        (m.matchWords ? ', matched segment ~' + m.matchWords + ' words' : '') +
+        (m.shingleOverlap ? ', ' + m.shingleOverlap + ' exact 8-word match(es)' : '') + '</p>' +
+        '<p>' + esc(m.sourceSentence) + '</p>' +
+        (m.sourceUrl ? '<p><a href="' + esc(m.sourceUrl) + '" target="_blank" rel="noopener">Open the source page</a></p>' : '') + '</div>';
     } else if (m) {
-      html += '<div class="box"><h4>Closest Library sentence (below flag threshold)</h4><p>' + esc(m.sourceSentence) + '</p><p class="hint">Similarity ' + Math.round((m.similarity || 0) * 100) + '% — under the 50% flag line, so this sentence counts as original.</p></div>';
+      html += '<div class="box"><h4>Closest source sentence (below flag threshold)</h4><p>' + esc(m.sourceSentence) + '</p><p class="hint">Similarity ' + Math.round((m.similarity || 0) * 100) + '% — under the flag line, or the matched segment was under the small-match limit, so this sentence counts as original.</p></div>';
     } else {
-      html += '<div class="box"><h4>No Library match</h4><p class="hint">Nothing in your Library matched this sentence. Use the web search below to check it online yourself.</p></div>';
+      html += '<div class="box"><h4>No match found</h4><p class="hint">No enabled source matched this sentence. That is not a guarantee — see About &amp; Limits.</p></div>';
     }
     html += '</div>';
-    html += '<a class="search-btn" target="_blank" rel="noopener" href="' + esc(sent.googleSearchUrl) + '">🔍 Search this exact sentence on Google (Layer 3 web check)</a>';
-    html += '<p class="hint">The Google search opens with the sentence in quotes — if the exact line exists on a website, it should appear there. That check is manual by design: it keeps MoulikCheck free and unlimited.</p>';
+    html += '<a class="search-btn" target="_blank" rel="noopener" href="' + esc(sent.googleSearchUrl) + '">🔍 Search this exact sentence on Google yourself</a>';
     b.innerHTML = html;
     $('detail-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -218,20 +396,33 @@
   // ---------- Export / print ----------
   function buildExportHtml() {
     var s = lastResult.summary;
+    var breakdown = E.sourceBreakdown(lastResult.sentences);
+    var statusRows = lastSourceStatus.map(function (st) {
+      return '<tr><td>' + esc(st.source) + '</td><td>' + esc(st.status) + '</td><td>' + esc(st.detail || '') + '</td></tr>';
+    }).join('');
+    var bdRows = breakdown.map(function (src) {
+      return '<tr><td>' + esc(src.name) + '</td><td>' + esc(S.typeLabel(src.type)) + '</td><td>' + src.pct + '%</td><td>' + src.sentences + '</td><td>' + (src.url ? '<a href="' + esc(src.url) + '">link</a>' : '—') + '</td></tr>';
+    }).join('');
     var rows = lastResult.sentences.map(function (sent) {
       var m = sent.bestMatch;
       return '<tr><td>' + esc(sent.status) + '</td><td>' + esc(sent.text) + '</td><td>' +
-        (m && sent.status !== 'original' ? esc(m.sourceName) + ' (' + Math.round((m.similarity || 0) * 100) + '%): ' + esc(m.sourceSentence) : '—') +
+        (m && sent.status !== 'original' ? esc(m.sourceName) + ' [' + esc(S.typeLabel(m.sourceType)) + '] (' + Math.round((m.similarity || 0) * 100) + '%): ' + esc(m.sourceSentence) + (m.sourceUrl ? ' — <a href="' + esc(m.sourceUrl) + '">source</a>' : '') : '—') +
         '</td><td><a href="' + esc(sent.googleSearchUrl) + '">Google search</a></td></tr>';
     }).join('');
     var highlighted = lastResult.sentences.map(function (sent) {
       var colors = { exact: '#f8d7da', similar: '#fff3cd', original: 'transparent', quoted: '#e8eaf6' };
+      if ((sent.status === 'exact' || sent.status === 'similar') && sent.bestMatch) {
+        var c = sourceColors[sourceKeyOf(sent.bestMatch)];
+        if (c) colors[sent.status] = c;
+      }
       return '<span style="background:' + colors[sent.status] + '">' + esc(sent.text) + '</span> ';
     }).join('');
-    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>MoulikCheck Report</title></head><body style="font-family:system-ui;max-width:800px;margin:20px auto;line-height:1.7">' +
-      '<h1>MoulikCheck Report</h1><p>Generated ' + new Date().toLocaleString() + '</p>' +
-      '<p><b>Total Risk: ' + s.totalRisk + '% (' + s.band + ')</b> · Exact ' + s.exactPct + '% · Similar ' + s.similarPct + '% · Original ' + s.originalPct + '% · ' + s.totalWords + ' words</p>' +
+    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>MoulikCheck V2 Report</title></head><body style="font-family:system-ui;max-width:800px;margin:20px auto;line-height:1.7">' +
+      '<h1>MoulikCheck V2 Report</h1><p>Generated ' + new Date().toLocaleString() + '</p>' +
+      '<p><b>Similarity / Total Risk: ' + s.totalRisk + '% (' + s.band + ')</b> · Exact ' + s.exactPct + '% · Similar ' + s.similarPct + '% · Original ' + s.originalPct + '% · ' + s.totalWords + ' words · Whole-web queries used: ' + lastWebQueries + '</p>' +
       '<p style="background:#fff8e1;padding:10px">' + esc(s.disclaimer) + '</p>' +
+      '<h2>Source status</h2><table border="1" cellspacing="0" cellpadding="6"><tr><th>Source</th><th>Status</th><th>Detail</th></tr>' + statusRows + '</table>' +
+      '<h2>Source breakdown</h2><table border="1" cellspacing="0" cellpadding="6"><tr><th>Source</th><th>Type</th><th>% of document</th><th>Sentences</th><th>Link</th></tr>' + bdRows + '</table>' +
       '<h2>Highlighted text</h2><p>' + highlighted + '</p>' +
       '<h2>Sentence details</h2><table border="1" cellspacing="0" cellpadding="6"><tr><th>Status</th><th>Sentence</th><th>Match</th><th>Web check</th></tr>' + rows + '</table></body></html>';
   }
@@ -240,7 +431,7 @@
     var blob = new Blob([buildExportHtml()], { type: 'text/html' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'moulikcheck-report.html';
+    a.download = 'moulikcheck-v2-report.html';
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   });
@@ -248,5 +439,6 @@
 
   loadLibrary();
   renderLibrary();
+  loadSettings();
   updateCounts();
 })();

@@ -43,4 +43,17 @@ table{width:100%;border-collapse:collapse;font-size:.9rem}
 th,td{border:1px solid #e1e5ea;padding:7px;text-align:left;vertical-align:top}
 th{background:#f0f3f0}
 footer{text-align:center;color:var(--mut);font-size:.85rem;padding:10px 16px 24px}
+/* V2 additions */
+.privacy-notice{background:#eef4ff;border:1px solid #b9cdf5;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:.93rem}
+.progress{background:#e6eaee;border-radius:8px;height:12px;overflow:hidden;margin:6px 0}
+#progress-bar{background:var(--accent);height:100%;width:0;transition:width .3s}
+.status-list{list-style:none;padding:0;font-size:.92rem}
+.status-list li{border:1px solid #e1e5ea;border-radius:8px;padding:7px 10px;margin:5px 0}
+.src-card{border:1px solid #e1e5ea;border-radius:8px;padding:9px 12px;margin:7px 0;cursor:pointer;background:#fbfcfb}
+.src-card:hover{outline:2px solid #bbb}
+.src-card .src-pct{font-size:1.25rem;font-weight:800}
+.tag{display:inline-block;background:#eef1f3;border-radius:6px;padding:1px 7px;font-size:.78rem;color:var(--mut);vertical-align:middle}
+input[type=number]{padding:6px;border:1px solid #c9d1d9;border-radius:6px;font:inherit}
+input[type=password]{width:100%;padding:10px;border:1px solid #c9d1d9;border-radius:8px;font:inherit;margin:6px 0}
+.report .s.f-match{opacity:1!important;outline:2px solid #666}
 @media print{header,.card:not(#result-card),footer,.actions,.filters{display:none!important} body{background:#fff}}

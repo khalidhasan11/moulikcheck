@@ -1,0 +1,117 @@
+{
+  "startedAt": "2026-11-09T18:32:50.145Z",
+  "tests": {
+    "wikipedia": {
+      "stats": {
+        "source": "Wikipedia",
+        "status": "partial",
+        "queries": 8,
+        "matched": 4,
+        "detail": "2 Wikipedia request(s) failed (last: Wikipedia search HTTP 429)"
+      },
+      "flagged": "4/5",
+      "correctArticle": "4/5",
+      "originalsFalselyFlagged": "0/5",
+      "detail": [
+        {
+          "n": 1,
+          "sentence": "The term photosynthesis usually refers to oxygenic photosynthesis, a process that releases…",
+          "status": "exact",
+          "attributedSource": "Wikipedia — Photosynthesis",
+          "correctArticle": true,
+          "similarity": 1
+        },
+        {
+          "n": 2,
+          "sentence": "When needing to use this stored energy, an organism's cells then metabolize the organic co…",
+          "status": "exact",
+          "attributedSource": "Wikipedia — Photosynthesis",
+          "correctArticle": true,
+          "similarity": 1
+        },
+        {
+          "n": 3,
+          "sentence": "Photosynthesis plays a critical role in producing and maintaining the oxygen content of th…",
+          "status": "exact",
+          "attributedSource": "Wikipedia — Photosynthesis",
+          "correctArticle": true,
+          "similarity": 1
+        },
+        {
+          "n": 4,
+          "sentence": "Such archaeal photosynthesis might have been the earliest form of photosynthesis that evol…",
+          "status": "exact",
+          "attributedSource": "Wikipedia — Photosynthesis",
+          "correctArticle": true,
+          "similarity": 1
+        },
+        {
+          "n": 5,
+          "sentence": "While the details may differ between species, the process always begins when light energy …",
+          "status": "original",
+          "attributedSource": null,
+          "correctArticle": false,
+          "similarity": null
+        }
+      ]
+    },
+    "crossref": {
+      "ok": true,
+      "resultsParsed": 5,
+      "firstTitle": "Understanding Performance Appraisal",
+      "firstUrl": "https://doi.org/10.4324/9781315626529-2"
+    },
+    "semanticScholar": {
+      "ok": false,
+      "attempt": 2,
+      "error": "Semantic Scholar rate-limited (HTTP 429) — shared no-key pool exhausted; try again later",
+      "rateLimited": true
+    },
+    "slideRegression": {
+      "flagged": "5/5",
+      "correctSource": "5/5",
+      "distractorFalsePositives": "0/2",
+      "risk": 69.2
+    },
+    "clean": {
+      "risk": 0,
+      "band": "Low",
+      "falsePositives": "0/10"
+    },
+    "smallMatch": {
+      "sharedRunWords": 6,
+      "min8": "original",
+      "min5": "exact",
+      "min5matchWords": 6
+    },
+    "sourceD": {
+      "serperShape": {
+        "url": "https://google.serper.dev/search",
+        "method": "POST",
+        "hasKeyHeader": true,
+        "bodyHasQuotedQuery": true
+      },
+      "tavilyShape": {
+        "url": "https://api.tavily.com/search",
+        "method": "POST",
+        "authHeader": true,
+        "bodyQuery": true
+      },
+      "noKeySerperStatus": "not-enabled",
+      "noKeyTavilyStatus": "not-enabled",
+      "webStageNoKey": {
+        "status": "not-enabled",
+        "queries": 0
+      },
+      "classify": {
+        "reddit": "forum",
+        "facebook": "social",
+        "bbc": "website",
+        "wikipedia": "wikipedia",
+        "doi": "academic"
+      },
+      "liveKeyTest": "UNTESTED — no Serper/Tavily key was available in this environment"
+    }
+  },
+  "finishedAt": "2026-11-09T18:33:20.787Z"
+}
