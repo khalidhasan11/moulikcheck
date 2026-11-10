@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MoulikCheck — Free Plagiarism Risk Checker (V2)</title>
+<title>MoulikCheck — Free Plagiarism Risk Checker (V3)</title>
 <link rel="stylesheet" href="./style.css">
 <!-- PDF / DOCX reading via CDN. If a CDN fails, .txt and paste still work — see app.js fallbacks. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -11,9 +11,9 @@
 </head>
 <body>
 <header>
-  <h1>MoulikCheck <span class="v">V2</span></h1>
+  <h1>MoulikCheck <span class="v">V3</span></h1>
   <p class="tag">Free plagiarism <b>risk</b> checker — internet + your slides, checked automatically · আপনার assignment, submit করার আগে check করুন</p>
-  <p class="privacy">🔒 No account, no backend. Your document is read in your browser; only searched sentences are sent as queries to the sources you enable (see privacy notice).</p>
+  <p class="privacy">🔒 No account, and <b>no API key is ever asked from you</b>. Your document is read in your browser; only searched sentences are sent as queries to the checking sources — whole-web queries go through this project's own secure proxy, which holds the search keys encrypted on the server side, never on this page (see privacy notice).</p>
 </header>
 
 <main>
@@ -30,9 +30,11 @@
     <label class="check">Exclude small matches: ignore matches shorter than
       <input type="number" id="opt-min-match" value="8" min="1" max="20" style="width:64px"> words</label>
     <label class="check"><input type="checkbox" id="opt-offline"> Offline only (Library / slides) — no internet checks</label>
+    <label class="check">Max whole-web queries per document (via secure proxy):
+      <input type="number" id="opt-web-cap" value="30" min="1" max="200" style="width:72px"></label>
 
     <div id="privacy-notice" class="privacy-notice hidden">
-      <p><b>Privacy notice — first internet check:</b> To check Wikipedia, academic databases and (if enabled) the whole web, this app sends individual sentences from your document as <i>search queries</i> to those providers — the same thing you would type into a search engine yourself. Your whole file is never uploaded, and nothing is stored on any server. Providers may log queries under their own policies.</p>
+      <p><b>Privacy notice — first internet check:</b> To check Wikipedia, academic databases and the whole web, this app sends individual sentences from your document as <i>search queries</i> — the same thing you would type into a search engine yourself. Whole-web queries go through <b>this project's own secure proxy</b>: the search API keys live encrypted inside that proxy and are never on this website, and <b>no key is ever asked from you</b>. Your whole file is never uploaded, and nothing is stored on any server. Providers may log queries under their own policies.</p>
       <button id="privacy-accept" class="secondary">I understand — continue</button>
       <button id="privacy-offline" class="secondary">Use offline only instead</button>
     </div>
@@ -61,22 +63,9 @@
     <ul id="lib-list"></ul>
   </section>
 
-  <section class="card" id="settings-card">
-    <h2>3. Settings — whole-web check (optional, free keys)</h2>
-    <p class="hint">Wikipedia, Crossref, Semantic Scholar and your Library need <b>no key</b>. To also check the <b>whole web</b> — all websites, forums (Reddit, Quora…) and public social media posts that Google has indexed — add your own <b>free</b> key from <b>serper.dev</b> (2,500 free searches, no card) and/or <b>tavily.com</b> (1,000 free credits/month, no card). Whole-web runs last and only for sentences nothing else matched, to save your quota.</p>
-    <p class="warn">⚠ Keys are stored only in this browser (localStorage) and sent only to that provider — but anyone who can use this device/browser could view them. Use only free keys with no payment card attached. Never share your key in chat or code.</p>
-    <label for="key-serper">Serper API key (Google results)</label>
-    <input type="password" id="key-serper" placeholder="Paste Serper key (optional)" autocomplete="off">
-    <label for="key-tavily">Tavily API key</label>
-    <input type="password" id="key-tavily" placeholder="Paste Tavily key (optional)" autocomplete="off">
-    <label class="check">Max whole-web queries per document:
-      <input type="number" id="opt-web-cap" value="30" min="1" max="200" style="width:72px"></label>
-    <button id="settings-save" class="secondary">Save settings on this device</button>
-    <p id="settings-status" class="status"></p>
-  </section>
 
   <section class="card hidden" id="result-card">
-    <h2>4. Similarity report / ফলাফল</h2>
+    <h2>3. Similarity report / ফলাফল</h2>
     <div class="score-row">
       <div class="score-big"><span id="risk-pct">–</span><small>Similarity / Total Risk %</small></div>
       <div class="score-parts">
@@ -113,11 +102,11 @@
 
   <section class="card" id="about-card">
     <h2>About &amp; Limits — honest accuracy / সত্যটা জানুন</h2>
-    <p><b>This is NOT 100% accurate, and it is NOT a Turnitin prediction.</b> V2 works <i>like</i> Turnitin (automatic internet check + similarity report with per-source breakdown), but Turnitin's private student-paper database — millions of submitted assignments — cannot be checked by any free tool, and paywalled journal full texts are only partly reachable. Login-only/private social media content is not publicly crawlable, so no checker can search it; everything public and indexed <b>is</b> in scope via the whole-web stage.</p>
+    <p><b>This is NOT 100% accurate, and it is NOT a Turnitin prediction.</b> V3 works <i>like</i> Turnitin (automatic internet check + similarity report with per-source breakdown), but Turnitin's private student-paper database — millions of submitted assignments — cannot be checked by any free tool, and paywalled journal full texts are only partly reachable. Login-only/private social media content is not publicly crawlable, so no checker can search it; everything public and indexed <b>is</b> in scope via the whole-web stage.</p>
     <table>
-      <tr><th>Type</th><th>Expected catch</th><th>How V2 checks it</th></tr>
+      <tr><th>Type</th><th>Expected catch</th><th>How V3 checks it</th></tr>
       <tr><td>Copy-paste from Wikipedia</td><td>High</td><td>Automatic — Wikipedia API, full article text compared sentence by sentence</td></tr>
-      <tr><td>Copy-paste from websites / blogs / forums / public social posts</td><td>High when whole-web is enabled</td><td>Your free Serper (Google) / Tavily key searches the public web</td></tr>
+      <tr><td>Copy-paste from websites / blogs / forums / public social posts</td><td>High when whole-web is enabled</td><td>The project's secure proxy searches the public web (Google results via Serper, Tavily fallback) — keys stay encrypted in the proxy, never on this site</td></tr>
       <tr><td>Copy from journal / academic papers</td><td>Medium</td><td>Crossref + Semantic Scholar (mostly titles + abstracts, not full texts)</td></tr>
       <tr><td>Copy from course slides / chapter PDF</td><td>High — 90%+ if the slide is in your Library</td><td>Direct comparison with your own files (offline)</td></tr>
       <tr><td>Copy from another student's assignment</td><td>Only if that file is in your Library</td><td>Turnitin's student database is private — unreachable for free tools</td></tr>
@@ -126,12 +115,12 @@
       <tr><td>Translated plagiarism</td><td>Low</td><td>Cross-language detection is an unsolved problem</td></tr>
       <tr><td>Properly quoted + cited text</td><td>Should be 0% risk</td><td>Quoted sentences are excluded (toggle above)</td></tr>
     </table>
-    <p class="hint">How V2 works: Stage 1 Library (offline) → Stage 2 Wikipedia (automatic, no key) → Stage 3 Academic: Crossref + Semantic Scholar (automatic, no key; Semantic Scholar's shared pool can rate-limit — the report will say so if it happens) → Stage 4 Whole web (only with your free key; quota-smart, capped, counted). Every source's status — OK, failed, or not enabled — is shown in the report. Nothing is silently skipped.</p>
+    <p class="hint">How V3 works: Stage 1 Library (offline) → Stage 2 Wikipedia (automatic, no key) → Stage 3 Academic: Crossref + Semantic Scholar (automatic, no key; Semantic Scholar's shared pool can rate-limit — the report will say so if it happens) → Stage 4 Whole web (through the project's secure proxy — no key is asked from you; quota-smart, capped, counted; if the proxy is not configured yet, this stage honestly reports “not enabled”). Every source's status — OK, failed, or not enabled — is shown in the report. Nothing is silently skipped.</p>
   </section>
 </main>
 
 <footer>
-  <p>MoulikCheck V2 · Free forever · No account · No backend · Library &amp; settings live only in this browser (localStorage) — clearing browser data removes them.</p>
+  <p>MoulikCheck V3 · Free forever · No account · No API key on this site, ever — whole-web keys live encrypted in the project's secure proxy · Your Library lives only in this browser (localStorage) — clearing browser data removes it.</p>
 </footer>
 
 <script src="./engine.js"></script>

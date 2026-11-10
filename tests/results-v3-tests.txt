@@ -1,0 +1,75 @@
+=== WORKER TESTS ===
+PASS  (a) no secrets -> 503
+PASS  (a) error is "not-configured"
+PASS  (a) no upstream call made
+PASS  (b) Serper configured -> 200
+PASS  (b) provider = serper
+PASS  (b) results normalised (2 items, title/link/snippet/source)
+PASS  (b) source falls back to hostname when upstream omits it
+PASS  (b) upstream called Serper endpoint
+PASS  (b) upstream request carried X-API-KEY with the fake key
+PASS  (b) RESPONSE contains no key
+PASS  (b) CORS header echoes the allowed origin
+PASS  (c) disallowed origin -> 403
+PASS  (c) no upstream call made
+PASS  (d) first 10 requests pass (200)
+PASS  (d) 11th request -> 429
+PASS  (e) Tavily-only env -> 200
+PASS  (e) provider = tavily
+PASS  (e) results normalised (url->link, content->snippet)
+PASS  (e) upstream carried Bearer fake key
+PASS  (e) RESPONSE contains no key
+PASS  (e2) Serper 429 -> Tavily fallback 200
+PASS  (f) malformed JSON body -> 400
+PASS  (f) non-string q -> 400
+PASS  (f) q over 300 chars -> 400
+PASS  (g) OPTIONS preflight (allowed origin) -> 204
+PASS  (g) unknown route -> 404
+
+Worker tests: 26 passed, 0 failed
+
+=== SITE CHECKS ===
+PASS  absent token "key-serper" in all site files
+PASS  absent token "key-tavily" in all site files
+PASS  absent token "settings-card" in all site files
+PASS  absent token "settings-save" in all site files
+PASS  absent code token "serperKey" in JS
+PASS  absent code token "tavilyKey" in JS
+PASS  absent code token "X-API-KEY" in JS
+PASS  absent code token "google.serper.dev" in JS
+PASS  absent code token "api.tavily.com" in JS
+PASS  no localStorage line in JS mentions a key/serper/tavily
+PASS  index.html has no password input
+PASS  index.html asks for no API key (no "API key" input label)
+PASS  sources.js defines WORKER_URL placeholder
+PASS  sources.js POSTs to WORKER_URL + '/search'
+PASS  sources.js maps proxy 503 to NOT_CONFIGURED
+PASS  whole-web stage reports "not enabled (secure proxy not configured yet)"
+PASS  index.html keeps the Library (own sources) card
+PASS  index.html keeps the check dashboard card
+PASS  app.js still runs the web stage via sources.runWebStage
+PASS  app.js no longer reads any key inputs ($('key-...') absent)
+PASS  privacy notice mentions the secure proxy
+
+Site checks: 21 passed, 0 failed
+=== SUBPATH SERVE CHECKS (http://localhost:8931/moulikcheck-v3/site/) ===
+/            -> 200 9563 bytes
+index.html   -> 200 9563 bytes
+engine.js    -> 200 16057 bytes
+sources.js   -> 200 18426 bytes
+app.js       -> 200 23397 bytes
+style.css    -> 200 4658 bytes
+README.md    -> 200 2873 bytes
+
+Served index is V3 (markers):
+<span class="v">V3</span>
+id="check-card"
+id="library-card"
+Settings/key markers in served index (must be empty):
+(end)
+workerConfigured(): false
+WORKER_URL: https://moulikcheck-search.YOUR-SUBDOMAIN.workers.dev
+stage status: not-enabled
+stage detail: Not enabled (secure proxy not configured yet) — the whole-web stage runs through the project’s own Cloudflare Worker once it is deployed and its secret is set. No key is ever asked from you on this site. Wikipedia, academic and Library checks still ran.
+queries used: 0
+request shape: POST https://moulikcheck-search.YOUR-SUBDOMAIN.workers.dev/search {"q":"\"test sentence\""} | auth header present: false

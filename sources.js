@@ -1,9 +1,12 @@
 /*
- * MoulikCheck sources.js — V2 internet sources (shared browser + Node).
+ * MoulikCheck sources.js — V3 internet sources (shared browser + Node).
  * All fetching for Sources A (Wikipedia), B (Crossref + Semantic Scholar)
- * and D (Serper / Tavily whole-web). Source C (Library) is offline in
- * engine.js. No API keys are stored in this file — Source D keys are
- * passed in per call by the app (from localStorage) or by tests.
+ * and D (whole web). Source C (Library) is offline in engine.js.
+ *
+ * V3 change (Khalid's rule, plan §7B): this site holds NO API key and
+ * NEVER asks the user for one. Source D calls the project's own secure
+ * proxy (a Cloudflare Worker) which keeps the Serper/Tavily keys as
+ * encrypted secrets on the server side. See WORKER_URL below.
  *
  * Honesty rules baked in:
  *  - Every stage returns a status object: ok | partial | failed |
@@ -143,47 +146,50 @@
     }).filter(function (d) { return d.text.trim().length > 10; });
   }
 
-  // ---------------- Source D: Serper / Tavily ----------------
-  function buildSerperRequest(sentence, apiKey) {
-    return {
-      url: 'https://google.serper.dev/search',
-      method: 'POST',
-      headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q: '"' + sentence + '"', num: 5 })
-    };
+  // ---------------- Source D: whole web via the secure proxy Worker ----------------
+  // The ONLY place Source D talks to. This is a placeholder until the
+  // Cloudflare Worker is deployed (see moulikcheck-v3/worker/ and
+  // SETUP_GUIDE_V3.md) — when it is live, replace ONLY this URL with the
+  // real https://moulikcheck-search.<subdomain>.workers.dev address.
+  // The Worker holds the Serper/Tavily keys as encrypted secrets; no key
+  // exists anywhere in this site, by design (plan §7B).
+  var WORKER_URL = 'https://moulikcheck-search.YOUR-SUBDOMAIN.workers.dev';
+
+  function workerConfigured() {
+    return !!WORKER_URL && WORKER_URL.indexOf('YOUR-SUBDOMAIN') === -1;
   }
-  function buildTavilyRequest(sentence, apiKey) {
+
+  // Builds the proxy request (kept separate so tests can assert its shape:
+  // POST {base}/search, JSON body { q: "<quoted sentence>" }, NO auth header).
+  function buildWorkerRequest(sentence) {
     return {
-      url: 'https://api.tavily.com/search',
+      url: WORKER_URL + '/search',
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: sentence, max_results: 5, search_depth: 'basic' })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: '"' + sentence + '"' })
     };
   }
 
-  async function serperCorpusForSentence(sentence, apiKey) {
-    if (!apiKey) return { status: 'not-enabled', corpus: [] };
+  async function webCorpusForSentence(sentence) {
+    if (!workerConfigured()) return { status: 'not-configured', corpus: [] };
     var f = fetchImpl();
-    var req = buildSerperRequest(sentence, apiKey);
+    var req = buildWorkerRequest(sentence);
     var res = await f(req.url, { method: req.method, headers: req.headers, body: req.body });
-    if (!res.ok) throw new Error('Serper HTTP ' + res.status);
-    var json = await res.json();
-    var organic = json.organic || [];
-    return { status: 'ok', corpus: organic.map(function (r) {
-      return { name: r.title || r.link, url: r.link, type: classifyUrl(r.link), text: (r.title || '') + '. ' + (r.snippet || '') };
-    }).filter(function (d) { return d.url && d.text.trim().length > 10; }) };
-  }
-
-  async function tavilyCorpusForSentence(sentence, apiKey) {
-    if (!apiKey) return { status: 'not-enabled', corpus: [] };
-    var f = fetchImpl();
-    var req = buildTavilyRequest(sentence, apiKey);
-    var res = await f(req.url, { method: req.method, headers: req.headers, body: req.body });
-    if (!res.ok) throw new Error('Tavily HTTP ' + res.status);
+    if (res.status === 503) {
+      var e503 = new Error('Whole-web secure proxy is not configured yet (HTTP 503) — the search key has not been added to the proxy.');
+      e503.code = 'NOT_CONFIGURED';
+      throw e503;
+    }
+    if (res.status === 429) {
+      var e429 = new Error('Whole-web secure proxy rate-limited this check (HTTP 429) — wait a minute and run the check again.');
+      e429.code = 'RATE_LIMIT';
+      throw e429;
+    }
+    if (!res.ok) throw new Error('Whole-web proxy HTTP ' + res.status);
     var json = await res.json();
     var results = json.results || [];
-    return { status: 'ok', corpus: results.map(function (r) {
-      return { name: r.title || r.url, url: r.url, type: classifyUrl(r.url), text: (r.title || '') + '. ' + (r.content || '') };
+    return { status: 'ok', provider: json.provider || null, corpus: results.map(function (r) {
+      return { name: r.title || r.link, url: r.link, type: classifyUrl(r.link), text: (r.title || '') + '. ' + (r.snippet || '') };
     }).filter(function (d) { return d.url && d.text.trim().length > 10; }) };
   }
 
@@ -293,28 +299,26 @@
 
   async function runWebStage(engine, results, opts) {
     opts = opts || {};
-    var stats = { source: 'Whole web (Serper/Tavily)', status: 'ok', queries: 0, matched: 0, detail: '' };
-    var provider = opts.serperKey ? 'serper' : (opts.tavilyKey ? 'tavily' : null);
-    if (!provider) {
+    var stats = { source: 'Whole web (secure proxy)', status: 'ok', queries: 0, matched: 0, detail: '' };
+    if (!workerConfigured()) {
       stats.status = 'not-enabled';
-      stats.detail = 'Not enabled \u2014 add a free Serper or Tavily key in Settings to check the whole web (websites, forums, social media). Wikipedia, academic and Library checks still ran.';
+      stats.detail = 'Not enabled (secure proxy not configured yet) \u2014 the whole-web stage runs through the project\u2019s own Cloudflare Worker once it is deployed and its secret is set. No key is ever asked from you on this site. Wikipedia, academic and Library checks still ran.';
       return stats;
     }
     var cap = typeof opts.cap === 'number' ? opts.cap : 30;
     var delayMs = typeof opts.delayMs === 'number' ? opts.delayMs : 250;
-    stats.source = provider === 'serper' ? 'Whole web (Serper \u2014 Google results)' : 'Whole web (Tavily)';
     var idxs = [];
     results.forEach(function (r, i) { if (r.status === 'original' && r.wordCount >= 10) idxs.push(i); });
     var groups = dedupeIndexes(engine, results, idxs).slice(0, cap);
     var failures = 0;
+    var providerName = null;
     for (var g = 0; g < groups.length; g++) {
       if (opts.isCancelled && opts.isCancelled()) { stats.status = 'partial'; stats.detail = 'Cancelled after ' + stats.queries + ' web queries.'; return stats; }
       var sentence = results[groups[g][0]].text;
       try {
-        var res = provider === 'serper'
-          ? await serperCorpusForSentence(sentence, opts.serperKey)
-          : await tavilyCorpusForSentence(sentence, opts.tavilyKey);
+        var res = await webCorpusForSentence(sentence);
         stats.queries++;
+        if (res.provider) providerName = res.provider;
         if (res.corpus && res.corpus.length) {
           var m = engine.matchSentence(sentence, res.corpus, { minMatchWords: opts.minMatchWords });
           if (m.status !== 'original') {
@@ -325,10 +329,23 @@
             });
           }
         }
-      } catch (e) { failures++; stats.detail = e.message; }
+      } catch (e) {
+        if (e.code === 'NOT_CONFIGURED') {
+          stats.status = 'not-enabled';
+          stats.detail = 'Not enabled (secure proxy not configured yet) \u2014 the Worker answered 503: its search secret has not been set. Wikipedia, academic and Library checks still ran.';
+          return stats;
+        }
+        if (e.code === 'RATE_LIMIT') {
+          stats.status = 'partial';
+          stats.detail = 'Rate-limited by the secure proxy after ' + stats.queries + ' web queries \u2014 wait a minute and run the check again. Results so far are kept.';
+          return stats;
+        }
+        failures++; stats.detail = e.message;
+      }
       if (opts.onProgress) opts.onProgress(stats.source, stats.queries, groups.length);
       if (delayMs) await sleep(delayMs);
     }
+    if (providerName) stats.source = 'Whole web (secure proxy \u00b7 ' + providerName + ')';
     if (failures && stats.queries === 0) stats.status = 'failed';
     else if (failures) { stats.status = 'partial'; stats.detail = failures + ' web request(s) failed (last: ' + stats.detail + '). ' + stats.queries + ' queries used.'; }
     else stats.detail = stats.queries + ' web queries used (cap ' + cap + '), ' + stats.matched + ' sentence(s) matched.';
@@ -341,8 +358,8 @@
     fetchWikipediaArticle: fetchWikipediaArticle,
     crossrefCorpusForSentence: crossrefCorpusForSentence,
     semanticScholarCorpusForSentence: semanticScholarCorpusForSentence,
-    buildSerperRequest: buildSerperRequest, buildTavilyRequest: buildTavilyRequest,
-    serperCorpusForSentence: serperCorpusForSentence, tavilyCorpusForSentence: tavilyCorpusForSentence,
+    WORKER_URL: WORKER_URL, workerConfigured: workerConfigured,
+    buildWorkerRequest: buildWorkerRequest, webCorpusForSentence: webCorpusForSentence,
     runWikipediaStage: runWikipediaStage, runAcademicStage: runAcademicStage, runWebStage: runWebStage,
     sleep: sleep
   };

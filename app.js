@@ -1,18 +1,20 @@
-/* MoulikCheck app.js — V2 UI layer.
+/* MoulikCheck app.js — V3 UI layer.
  * Checking logic: engine.js (matching) + sources.js (internet stages).
  * File reading: .txt natively; .docx via Mammoth (CDN); .pdf via PDF.js (CDN).
  * If a CDN failed to load, DOCX/PDF show a clear fallback message and
  * .txt / paste keep working — nothing is faked.
- * Keys for Source D live ONLY in localStorage on this device.
+ * V3: there are NO API keys anywhere in this app and no key is ever asked
+ * from the user. Whole-web checking goes through the project's own secure
+ * proxy (Cloudflare Worker), which holds the keys as encrypted secrets.
  */
 (function () {
   'use strict';
   var E = window.MoulikEngine;
   var S = window.MoulikSources;
-  var LS_LIB_V2 = 'moulikcheck_library_v2';
-  var LS_LIB_V1 = 'moulikcheck_library_v1'; // migrated read-only if V2 empty
-  var LS_SETTINGS = 'moulikcheck_v2_settings';
-  var LS_PRIVACY = 'moulikcheck_v2_privacy_ack';
+  var LS_LIB_V3 = 'moulikcheck_library_v3';
+  var LS_LIB_V2 = 'moulikcheck_library_v2'; // migrated read-only if V3 empty
+  var LS_LIB_V1 = 'moulikcheck_library_v1'; // migrated read-only if V3/V2 empty
+  var LS_PRIVACY = 'moulikcheck_v3_privacy_ack';
   var LS_LIMIT = 4500000;
   var library = [];
   var lastResult = null;
@@ -30,29 +32,12 @@
   }
   function sourceKeyOf(m) { return (m.sourceName || 'Source') + '|' + (m.sourceUrl || ''); }
 
-  // ---------- Settings ----------
-  function loadSettings() {
-    var st = {};
-    try { st = JSON.parse(localStorage.getItem(LS_SETTINGS) || '{}') || {}; } catch (e) { st = {}; }
-    $('key-serper').value = st.serper || '';
-    $('key-tavily').value = st.tavily || '';
-    if (st.webCap) $('opt-web-cap').value = st.webCap;
-    return st;
-  }
+  // ---------- Options (V3: no API keys exist on this site — nothing to set) ----------
   function currentSettings() {
     return {
-      serper: $('key-serper').value.trim(),
-      tavily: $('key-tavily').value.trim(),
       webCap: Math.max(1, parseInt($('opt-web-cap').value, 10) || 30)
     };
   }
-  $('settings-save').addEventListener('click', function () {
-    try {
-      localStorage.setItem(LS_SETTINGS, JSON.stringify(currentSettings()));
-      $('settings-status').textContent = 'Saved on this device. Whole-web check is ' +
-        (currentSettings().serper || currentSettings().tavily ? 'ENABLED.' : 'not enabled (no key).');
-    } catch (e) { $('settings-status').textContent = '⚠ Could not save settings in this browser.'; }
-  });
 
   // ---------- File extraction ----------
   function setStatus(id, msg) { $(id).textContent = msg || ''; }
@@ -120,19 +105,20 @@
       var json = JSON.stringify(library);
       if (json.length > LS_LIMIT) {
         $('lib-storage-warning').textContent = '⚠ Library is too large for browser storage (' + Math.round(json.length / 1024) + ' KB) — it will work for this session but may NOT be saved. Remove large files.';
-        try { localStorage.setItem(LS_LIB_V2, json); } catch (e) { /* session-only */ }
+        try { localStorage.setItem(LS_LIB_V3, json); } catch (e) { /* session-only */ }
         return;
       }
       $('lib-storage-warning').textContent = '';
-      localStorage.setItem(LS_LIB_V2, json);
+      localStorage.setItem(LS_LIB_V3, json);
     } catch (e) {
       $('lib-storage-warning').textContent = '⚠ Could not save Library in this browser (storage full/blocked). It will work for this session only.';
     }
   }
   function loadLibrary() {
     try {
-      var raw = localStorage.getItem(LS_LIB_V2);
-      if (!raw) raw = localStorage.getItem(LS_LIB_V1); // V1 -> V2 migration on same origin
+      var raw = localStorage.getItem(LS_LIB_V3);
+      if (!raw) raw = localStorage.getItem(LS_LIB_V2); // V2 -> V3 migration on same origin
+      if (!raw) raw = localStorage.getItem(LS_LIB_V1); // V1 -> V3 migration on same origin
       if (raw) library = JSON.parse(raw) || [];
     } catch (e) { library = []; }
   }
@@ -257,10 +243,10 @@
       if (!offline) {
         // Stage 4 — Whole web (only if not cancelled; if cancelled, mark partial)
         if (cancelFlag.cancelled) {
-          lastSourceStatus.push({ source: 'Whole web (Serper/Tavily)', status: 'partial', detail: 'Skipped — check was cancelled before this stage.' });
+          lastSourceStatus.push({ source: 'Whole web (secure proxy)', status: 'partial', detail: 'Skipped — check was cancelled before this stage.' });
         } else {
           var web = await S.runWebStage(E, lastResult.sentences, {
-            serperKey: settings.serper, tavilyKey: settings.tavily, cap: settings.webCap,
+            cap: settings.webCap,
             minMatchWords: minMatch, isCancelled: function () { return cancelFlag.cancelled; },
             onProgress: function (src, done, total) { lastWebQueries = done; setProgress(3, totalStages, 'Stage 4/' + totalStages + ' — ' + src + ' (' + done + '/' + total + ')…', total ? done / total : 0); }
           });
@@ -272,7 +258,7 @@
         lastSourceStatus.push({ source: 'Wikipedia', status: 'skipped', detail: 'Skipped — Offline only mode.' });
         lastSourceStatus.push({ source: 'Crossref', status: 'skipped', detail: 'Skipped — Offline only mode.' });
         lastSourceStatus.push({ source: 'Semantic Scholar', status: 'skipped', detail: 'Skipped — Offline only mode.' });
-        lastSourceStatus.push({ source: 'Whole web (Serper/Tavily)', status: 'skipped', detail: 'Skipped — Offline only mode.' });
+        lastSourceStatus.push({ source: 'Whole web (secure proxy)', status: 'skipped', detail: 'Skipped — Offline only mode.' });
         renderResult();
       }
       setProgress(totalStages, totalStages, cancelFlag.cancelled ? 'Check cancelled — showing partial results.' : 'Check complete.', 0);
@@ -417,8 +403,8 @@
       }
       return '<span style="background:' + colors[sent.status] + '">' + esc(sent.text) + '</span> ';
     }).join('');
-    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>MoulikCheck V2 Report</title></head><body style="font-family:system-ui;max-width:800px;margin:20px auto;line-height:1.7">' +
-      '<h1>MoulikCheck V2 Report</h1><p>Generated ' + new Date().toLocaleString() + '</p>' +
+    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>MoulikCheck V3 Report</title></head><body style="font-family:system-ui;max-width:800px;margin:20px auto;line-height:1.7">' +
+      '<h1>MoulikCheck V3 Report</h1><p>Generated ' + new Date().toLocaleString() + '</p>' +
       '<p><b>Similarity / Total Risk: ' + s.totalRisk + '% (' + s.band + ')</b> · Exact ' + s.exactPct + '% · Similar ' + s.similarPct + '% · Original ' + s.originalPct + '% · ' + s.totalWords + ' words · Whole-web queries used: ' + lastWebQueries + '</p>' +
       '<p style="background:#fff8e1;padding:10px">' + esc(s.disclaimer) + '</p>' +
       '<h2>Source status</h2><table border="1" cellspacing="0" cellpadding="6"><tr><th>Source</th><th>Status</th><th>Detail</th></tr>' + statusRows + '</table>' +
@@ -431,7 +417,7 @@
     var blob = new Blob([buildExportHtml()], { type: 'text/html' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'moulikcheck-v2-report.html';
+    a.download = 'moulikcheck-v3-report.html';
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   });
@@ -439,6 +425,5 @@
 
   loadLibrary();
   renderLibrary();
-  loadSettings();
   updateCounts();
 })();
