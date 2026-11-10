@@ -90,6 +90,7 @@ button.secondary:hover{background:#e2e8ec}
 .report .s:hover{outline:2px solid #999}
 .report .exact{background:var(--red)} .report .similar{background:var(--yellow)} .report .original{background:transparent}
 .report .quoted{background:#e8eaf6;color:var(--mut)}
+.report .bibliography{background:#e8eaf6;color:var(--mut);font-style:italic}
 .report.dim-nonmatch .s:not(.f-match){opacity:.35}
 .report .s.f-match{opacity:1!important;outline:2px solid #666}
 .actions{margin-top:14px}

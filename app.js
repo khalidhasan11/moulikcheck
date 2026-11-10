@@ -212,7 +212,7 @@
     $('cancel-btn').classList.remove('hidden');
     lastSourceStatus = [];
     lastWebQueries = 0;
-    var totalStages = offline ? 1 : 4;
+    var totalStages = offline ? 1 : 5;
 
     try {
       // Stage 1 — Library (offline)
@@ -254,11 +254,22 @@
           lastSourceStatus.push(web);
           refreshSummary(base.summary); renderResult();
         }
+        // Stage 5 — Page verification: re-check web matches against the
+        // real page text (search snippets alone are not proof).
+        if (!cancelFlag.cancelled) {
+          var verify = await S.runVerifyStage(E, lastResult.sentences, {
+            minMatchWords: minMatch, isCancelled: function () { return cancelFlag.cancelled; },
+            onProgress: function (src, done, total) { setProgress(4, totalStages, 'Stage 5/' + totalStages + ' — Verifying pages (' + done + '/' + total + ')…', total ? done / total : 0); }
+          });
+          lastSourceStatus.push(verify);
+          refreshSummary(base.summary); renderResult();
+        }
       } else {
         lastSourceStatus.push({ source: 'Wikipedia', status: 'skipped', detail: 'Skipped — Offline only mode.' });
         lastSourceStatus.push({ source: 'Crossref', status: 'skipped', detail: 'Skipped — Offline only mode.' });
         lastSourceStatus.push({ source: 'Semantic Scholar', status: 'skipped', detail: 'Skipped — Offline only mode.' });
         lastSourceStatus.push({ source: 'Whole web (secure proxy)', status: 'skipped', detail: 'Skipped — Offline only mode.' });
+        lastSourceStatus.push({ source: 'Page verification', status: 'skipped', detail: 'Skipped — Offline only mode.' });
         renderResult();
       }
       setProgress(totalStages, totalStages, cancelFlag.cancelled ? 'Check cancelled — showing partial results.' : 'Check complete.', 0);
@@ -287,6 +298,12 @@
     $('original-pct').textContent = s.originalPct + '%';
     $('band').textContent = s.band;
     $('web-queries-line').textContent = 'Whole-web queries used in this check: ' + lastWebQueries;
+    var tc = s.typeCounts || {};
+    var nSources = E.sourceBreakdown(r.sentences).length;
+    $('match-summary').textContent = 'Matched: ' + (s.matchedWords || 0) + ' of ' + s.scoredWords + ' words · ' + nSources + ' source(s)' +
+      ' · Exact ' + (tc.exact || 0) + ' · Near-exact ' + (tc['near-exact'] || 0) + ' · Paraphrase ' + (tc.paraphrase || 0) +
+      ' · Common phrase ' + (tc['common-phrase'] || 0) + ' · Cited ' + (tc.citation || 0) + ' · Quoted ' + (tc.quotation || 0) +
+      ' · Bibliography ' + (tc.bibliography || 0) + ' · Page-verified sources: ' + (s.verifiedSourceCount || 0);
     $('disclaimer').textContent = '⚠ ' + s.disclaimer +
       (s.referencesStripped ? ' A References/Bibliography section was detected and removed before scoring.' : '');
 
@@ -311,7 +328,8 @@
       div.className = 'src-card';
       div.style.borderLeft = '8px solid ' + sourceColors[src.key];
       var label = S.typeLabel(src.type);
-      div.innerHTML = '<b>' + esc(src.name) + '</b> <span class="tag">' + esc(label) + '</span><br>' +
+      div.innerHTML = '<b>' + esc(src.name) + '</b> <span class="tag">' + esc(label) + '</span>' +
+        (src.verified ? ' <span class="tag">✓ Page-verified</span>' : ' <span class="tag">Search result</span>') + '<br>' +
         '<span class="src-pct">' + src.pct + '%</span> of document · ' + src.sentences + ' sentence(s)' +
         (src.url ? ' · <a href="' + esc(src.url) + '" target="_blank" rel="noopener">Open source</a>' : '');
       div.addEventListener('click', function () { filterBySource(src.key); });
@@ -362,7 +380,14 @@
     html += '<div class="side"><div class="box"><h4>Your sentence</h4><p>' + esc(sent.text) + '</p></div>';
     if (m && sent.status !== 'original') {
       html += '<div class="box"><h4>Matched: ' + esc(m.sourceName) + '</h4>' +
-        '<p><span class="tag">' + esc(S.typeLabel(m.sourceType)) + '</span> · method ' + esc(m.method) +
+        '<p><span class="tag">' + esc(S.typeLabel(m.sourceType)) + '</span>' +
+        (m.matchType ? ' · <b>Type:</b> ' + esc(m.matchType) : '') +
+        (m.confidence ? ' · <b>Confidence:</b> ' + esc(m.confidence) : '') +
+        ' · ' + (m.verified ? '✓ Verified against the source text' : 'Found via search — not fully verified') +
+        (m.cited ? ' · Citation detected (weight reduced)' : '') + '</p>' +
+        (m.reason ? '<p><b>Why flagged:</b> ' + esc(m.reason) + '</p>' : '') +
+        (m.verifyNote ? '<p class="hint">' + esc(m.verifyNote) + '</p>' : '') +
+        '<p class="hint">Method ' + esc(m.method) +
         ', similarity ' + Math.round((m.similarity || 0) * 100) + '%' +
         (m.matchWords ? ', matched segment ~' + m.matchWords + ' words' : '') +
         (m.shingleOverlap ? ', ' + m.shingleOverlap + ' exact 8-word match(es)' : '') + '</p>' +
@@ -393,6 +418,7 @@
       var m = sent.bestMatch;
       return '<tr><td>' + esc(sent.status) + '</td><td>' + esc(sent.text) + '</td><td>' +
         (m && sent.status !== 'original' ? esc(m.sourceName) + ' [' + esc(S.typeLabel(m.sourceType)) + '] (' + Math.round((m.similarity || 0) * 100) + '%): ' + esc(m.sourceSentence) + (m.sourceUrl ? ' — <a href="' + esc(m.sourceUrl) + '">source</a>' : '') : '—') +
+        '</td><td>' + (m && sent.status !== 'original' ? esc(m.matchType || '') + ' / ' + esc(m.confidence || '') + (m.verified ? ' / verified' : ' / unverified') + (m.reason ? '<br>' + esc(m.reason) : '') : '—') +
         '</td><td><a href="' + esc(sent.googleSearchUrl) + '">Google search</a></td></tr>';
     }).join('');
     var highlighted = lastResult.sentences.map(function (sent) {
@@ -403,21 +429,21 @@
       }
       return '<span style="background:' + colors[sent.status] + '">' + esc(sent.text) + '</span> ';
     }).join('');
-    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>MoulikCheck V3 Report</title></head><body style="font-family:system-ui;max-width:800px;margin:20px auto;line-height:1.7">' +
-      '<h1>MoulikCheck V3 Report</h1><p>Generated ' + new Date().toLocaleString() + '</p>' +
+    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>MoulikCheck V4 Report</title></head><body style="font-family:system-ui;max-width:800px;margin:20px auto;line-height:1.7">' +
+      '<h1>MoulikCheck V4 Report</h1><p>Generated ' + new Date().toLocaleString() + '</p>' +
       '<p><b>Similarity / Total Risk: ' + s.totalRisk + '% (' + s.band + ')</b> · Exact ' + s.exactPct + '% · Similar ' + s.similarPct + '% · Original ' + s.originalPct + '% · ' + s.totalWords + ' words · Whole-web queries used: ' + lastWebQueries + '</p>' +
       '<p style="background:#fff8e1;padding:10px">' + esc(s.disclaimer) + '</p>' +
       '<h2>Source status</h2><table border="1" cellspacing="0" cellpadding="6"><tr><th>Source</th><th>Status</th><th>Detail</th></tr>' + statusRows + '</table>' +
       '<h2>Source breakdown</h2><table border="1" cellspacing="0" cellpadding="6"><tr><th>Source</th><th>Type</th><th>% of document</th><th>Sentences</th><th>Link</th></tr>' + bdRows + '</table>' +
       '<h2>Highlighted text</h2><p>' + highlighted + '</p>' +
-      '<h2>Sentence details</h2><table border="1" cellspacing="0" cellpadding="6"><tr><th>Status</th><th>Sentence</th><th>Match</th><th>Web check</th></tr>' + rows + '</table></body></html>';
+      '<h2>Sentence details</h2><table border="1" cellspacing="0" cellpadding="6"><tr><th>Status</th><th>Sentence</th><th>Match</th><th>Type / Confidence</th><th>Web check</th></tr>' + rows + '</table></body></html>';
   }
   $('export-btn').addEventListener('click', function () {
     if (!lastResult) return;
     var blob = new Blob([buildExportHtml()], { type: 'text/html' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'moulikcheck-v3-report.html';
+    a.download = 'moulikcheck-v4-report.html';
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   });

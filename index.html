@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MoulikCheck — Free Plagiarism Checker</title>
+<title>MoulikCheck — Free Plagiarism Checker (V4)</title>
 <link rel="stylesheet" href="./style.css">
 <!-- PDF / DOCX reading via CDN. If a CDN fails, .txt and paste still work — see app.js fallbacks. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -11,7 +11,7 @@
 </head>
 <body>
 <header>
-  <h1>MoulikCheck <span class="v">V3</span></h1>
+  <h1>MoulikCheck <span class="v">V4</span></h1>
   <p class="tag">Free plagiarism risk checker · Submit করার আগে check করুন</p>
   <p class="privacy">🔒 No account · No key needed · Your file stays in your browser — only searched sentences go out as queries via our secure proxy.</p>
 </header>
@@ -74,6 +74,7 @@
         <p>🟢 Original: <b id="original-pct">–</b></p>
         <p>Band: <b id="band">–</b> <span class="hint">(0–10 Low · 11–25 Medium · 26+ High)</span></p>
         <p id="web-queries-line" class="hint"></p>
+        <p id="match-summary" class="hint"></p>
       </div>
     </div>
     <p class="disclaimer" id="disclaimer"></p>
@@ -109,7 +110,7 @@
 </main>
 
 <footer>
-  <p>MoulikCheck V3 · Free · No account · Your Library lives only in this browser.</p>
+  <p>MoulikCheck V4 · Free · No account · Your Library lives only in this browser.</p>
 </footer>
 
 <script src="./engine.js"></script>

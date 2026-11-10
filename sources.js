@@ -90,6 +90,7 @@
       name: 'Wikipedia \u2014 ' + title,
       url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(title.replace(/ /g, '_')),
       type: 'wikipedia',
+      verified: true, tier: 'high', // full article text is compared, not a snippet
       text: page.extract
     }];
   }
@@ -117,7 +118,8 @@
       var title = (it.title && it.title[0]) || 'Untitled work';
       return {
         name: title, url: it.URL || (it.DOI ? 'https://doi.org/' + it.DOI : null),
-        type: 'academic', text: title + '. ' + stripTags(it.abstract || '')
+        type: 'academic', verified: false, tier: 'high', // title/abstract only, not full text
+        text: title + '. ' + stripTags(it.abstract || '')
       };
     }).filter(function (d) { return d.text.trim().length > 10; });
   }
@@ -142,7 +144,7 @@
     var data = json.data || [];
     return data.map(function (p) {
       var text = (p.title || '') + '. ' + (p.abstract || '') + ' ' + ((p.tldr && p.tldr.text) || '');
-      return { name: p.title || 'Untitled paper', url: p.url || null, type: 'academic', text: text };
+      return { name: p.title || 'Untitled paper', url: p.url || null, type: 'academic', verified: false, tier: 'high', text: text };
     }).filter(function (d) { return d.text.trim().length > 10; });
   }
 
@@ -188,9 +190,95 @@
     if (!res.ok) throw new Error('Whole-web proxy HTTP ' + res.status);
     var json = await res.json();
     var results = json.results || [];
+    var seenUrl = {};
     return { status: 'ok', provider: json.provider || null, corpus: results.map(function (r) {
-      return { name: r.title || r.link, url: r.link, type: classifyUrl(r.link), text: (r.title || '') + '. ' + (r.snippet || '') };
-    }).filter(function (d) { return d.url && d.text.trim().length > 10; }) };
+      var t = classifyUrl(r.link);
+      return { name: r.title || r.link, url: r.link, type: t,
+        verified: false, // snippet only until the verification stage fetches the page
+        tier: (t === 'academic' || t === 'wikipedia') ? 'high' : 'standard',
+        text: (r.title || '') + '. ' + (r.snippet || '') };
+    }).filter(function (d) {
+      if (!d.url || d.text.trim().length <= 10) return false;
+      var key = normalizeUrl(d.url);
+      if (seenUrl[key]) return false; // same page via multiple results — keep one
+      seenUrl[key] = true;
+      return true;
+    }) };
+  }
+
+  function normalizeUrl(u) {
+    try {
+      var url = new URL(u);
+      return (url.hostname.replace(/^www\./, '') + url.pathname.replace(/\/$/, '')).toLowerCase();
+    } catch (e) { return String(u || '').toLowerCase(); }
+  }
+
+  // ---------------- Page verification via the Worker (/fetch) ----------------
+  // Search results are DISCOVERY only. This asks the Worker to fetch the
+  // actual page (server-side, so CORS does not block it) and returns its
+  // readable text; sources.runVerifyStage then re-compares the sentence
+  // against the real page text. Failures are reported, never faked.
+  function buildFetchRequest(pageUrl) {
+    return {
+      url: WORKER_URL + '/fetch',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: pageUrl })
+    };
+  }
+
+  async function fetchPageText(pageUrl) {
+    if (!workerConfigured()) return { ok: false, reason: 'not-configured' };
+    var f = fetchImpl();
+    var req = buildFetchRequest(pageUrl);
+    var res = await f(req.url, { method: req.method, headers: req.headers, body: req.body });
+    if (!res.ok) return { ok: false, reason: 'HTTP ' + res.status };
+    var json = await res.json();
+    if (!json || !json.ok || !json.text) return { ok: false, reason: (json && json.error) || 'empty' };
+    return { ok: true, title: json.title || '', text: json.text };
+  }
+
+  // Verify web-stage matches against the real pages (cap on pages fetched).
+  async function runVerifyStage(engine, results, opts) {
+    opts = opts || {};
+    var cap = typeof opts.cap === 'number' ? opts.cap : 5;
+    var stats = { source: 'Page verification', status: 'ok', queries: 0, matched: 0, detail: '' };
+    var byUrl = {};
+    results.forEach(function (r, i) {
+      if ((r.status === 'exact' || r.status === 'similar') && r.bestMatch && r.bestMatch.sourceUrl && !r.bestMatch.verified) {
+        (byUrl[r.bestMatch.sourceUrl] = byUrl[r.bestMatch.sourceUrl] || []).push(i);
+      }
+    });
+    var urls = Object.keys(byUrl).slice(0, cap);
+    if (!urls.length) { stats.detail = 'No unverified web matches needed page verification.'; return stats; }
+    var failures = 0;
+    for (var u = 0; u < urls.length; u++) {
+      if (opts.isCancelled && opts.isCancelled()) { stats.status = 'partial'; break; }
+      var pageUrl = urls[u];
+      var page = await fetchPageText(pageUrl);
+      stats.queries++;
+      if (!page.ok) {
+        failures++;
+        byUrl[pageUrl].forEach(function (i) { results[i].bestMatch.verifyNote = 'Source found — page could not be fetched (' + page.reason + '), so it is not fully verified.'; });
+        continue;
+      }
+      var first = results[byUrl[pageUrl][0]].bestMatch;
+      var corpus = [{ name: first.sourceName, url: pageUrl, type: first.sourceType, verified: true, tier: first.tier || 'standard', text: page.text }];
+      byUrl[pageUrl].forEach(function (i) {
+        var m = engine.matchSentence(results[i].text, corpus, { minMatchWords: opts.minMatchWords });
+        if (m.status !== 'original' && m.bestMatch) {
+          results[i].status = m.status;
+          results[i].bestMatch = m.bestMatch; // now verified against the real page text
+          stats.matched++;
+        } else {
+          results[i].bestMatch.verifyNote = 'Source found in search, but the sentence was not confirmed in the fetched page text — treat as unverified.';
+        }
+      });
+      if (opts.onProgress) opts.onProgress(stats.source, stats.queries, urls.length);
+    }
+    stats.detail = stats.queries + ' page(s) fetched, ' + stats.matched + ' match(es) verified against real page text' + (failures ? ', ' + failures + ' page(s) could not be fetched.' : '.');
+    if (failures && stats.matched === 0 && stats.queries === failures) stats.status = 'partial';
+    return stats;
   }
 
   // ---------------- Stage runners (shared app + tests) ----------------
@@ -212,7 +300,7 @@
     var delayMs = typeof opts.delayMs === 'number' ? opts.delayMs : 350; // polite pacing vs Wikimedia 429s
     var stats = { source: 'Wikipedia', status: 'ok', queries: 0, matched: 0, detail: '' };
     var idxs = [];
-    results.forEach(function (r, i) { if (r.status !== 'quoted' && r.wordCount >= 8) idxs.push(i); });
+    results.forEach(function (r, i) { if (r.status !== 'quoted' && r.status !== 'bibliography' && !r.noWebSearch && r.wordCount >= 8) idxs.push(i); });
     var groups = dedupeIndexes(engine, results, idxs).slice(0, cap);
     var failures = 0;
     for (var g = 0; g < groups.length; g++) {
@@ -251,7 +339,7 @@
       s2: { source: 'Semantic Scholar', status: 'ok', queries: 0, matched: 0, detail: '' }
     };
     var idxs = [];
-    results.forEach(function (r, i) { if (r.status !== 'quoted' && r.wordCount >= 8) idxs.push(i); });
+    results.forEach(function (r, i) { if (r.status !== 'quoted' && r.status !== 'bibliography' && !r.noWebSearch && r.wordCount >= 8) idxs.push(i); });
     var groups = dedupeIndexes(engine, results, idxs);
 
     async function applyFor(group, corpus, stats) {
@@ -308,7 +396,7 @@
     var cap = typeof opts.cap === 'number' ? opts.cap : 30;
     var delayMs = typeof opts.delayMs === 'number' ? opts.delayMs : 250;
     var idxs = [];
-    results.forEach(function (r, i) { if (r.status === 'original' && r.wordCount >= 10) idxs.push(i); });
+    results.forEach(function (r, i) { if (r.status === 'original' && !r.noWebSearch && r.wordCount >= 10) idxs.push(i); });
     var groups = dedupeIndexes(engine, results, idxs).slice(0, cap);
     var failures = 0;
     var providerName = null;
@@ -316,7 +404,10 @@
       if (opts.isCancelled && opts.isCancelled()) { stats.status = 'partial'; stats.detail = 'Cancelled after ' + stats.queries + ' web queries.'; return stats; }
       var sentence = results[groups[g][0]].text;
       try {
-        var res = await webCorpusForSentence(sentence);
+        // Search the DISTINCTIVE segment, not the whole generic sentence;
+        // matching still compares the original sentence to the results.
+        var query = engine.distinctiveQuery ? engine.distinctiveQuery(sentence) : sentence;
+        var res = await webCorpusForSentence(query);
         stats.queries++;
         if (res.provider) providerName = res.provider;
         if (res.corpus && res.corpus.length) {
@@ -360,7 +451,10 @@
     semanticScholarCorpusForSentence: semanticScholarCorpusForSentence,
     WORKER_URL: WORKER_URL, workerConfigured: workerConfigured,
     buildWorkerRequest: buildWorkerRequest, webCorpusForSentence: webCorpusForSentence,
+    buildFetchRequest: buildFetchRequest, fetchPageText: fetchPageText,
+    normalizeUrl: normalizeUrl,
     runWikipediaStage: runWikipediaStage, runAcademicStage: runAcademicStage, runWebStage: runWebStage,
+    runVerifyStage: runVerifyStage,
     sleep: sleep
   };
 
