@@ -153,7 +153,7 @@
   // real https://moulikcheck-search.<subdomain>.workers.dev address.
   // The Worker holds the Serper/Tavily keys as encrypted secrets; no key
   // exists anywhere in this site, by design (plan §7B).
-  var WORKER_URL = 'https://moulikcheck-search.YOUR-SUBDOMAIN.workers.dev';
+  var WORKER_URL = 'https://moulikcheck-search.khalidhasanbhuiyanshezan-14a.workers.dev';
 
   function workerConfigured() {
     return !!WORKER_URL && WORKER_URL.indexOf('YOUR-SUBDOMAIN') === -1;
