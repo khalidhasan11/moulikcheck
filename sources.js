@@ -1,6 +1,7 @@
 /*
  * MoulikCheck sources.js — V3 internet sources (shared browser + Node).
- * All fetching for Sources A (Wikipedia), B (Crossref + Semantic Scholar)
+ * All fetching for Sources A (Wikipedia), B (Crossref + Semantic Scholar,
+ * via the Worker /academic proxy first, direct-with-retry as fallback)
  * and D (whole web). Source C (Library) is offline in engine.js.
  *
  * V3 change (Khalid's rule, plan §7B): this site holds NO API key and
@@ -105,23 +106,120 @@
     return { title: page.title || title, extract: page.extract || '' };
   }
 
-  // ---------------- Source B: Crossref ----------------
-  async function crossrefCorpusForSentence(sentence) {
+  // ---------------- Source B: Crossref + Semantic Scholar ----------------
+  // Nov 11, 2026 fix (Khalid's "Worker diye fix kore din"): these two
+  // stages used to fetch the free academic APIs directly from the
+  // browser, where shared no-key rate limits and browser-level blocks
+  // surfaced only as an opaque "Failed to fetch". They now go through
+  // the project's own Worker (/academic), which calls the APIs
+  // server-side with a proper User-Agent, retries with backoff, and
+  // returns the real upstream status. If the Worker does not have the
+  // /academic endpoint yet (old deployment) or cannot be reached, the
+  // code falls back to a direct call WITH one retry, and any final
+  // failure names the actual HTTP status or network failure.
+
+  function buildAcademicRequest(provider, sentence) {
+    return {
+      url: WORKER_URL + '/academic',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: provider, q: sentence })
+    };
+  }
+
+  function workerUnavailableError() {
+    var e = new Error('academic proxy unavailable');
+    e.code = 'WORKER_UNAVAILABLE';
+    return e;
+  }
+
+  async function academicCorpusViaWorker(provider, sentence, label) {
+    if (!workerConfigured()) throw workerUnavailableError();
+    var f = fetchImpl();
+    var req = buildAcademicRequest(provider, sentence);
+    var res;
+    try {
+      res = await f(req.url, { method: req.method, headers: req.headers, body: req.body });
+    } catch (netErr) { throw workerUnavailableError(); }
+    if (res.status === 404 || res.status === 405) throw workerUnavailableError(); // old Worker without /academic
+    var json = null;
+    try { json = await res.json(); } catch (e) { /* handled below */ }
+    if (res.status === 429) {
+      var er = new Error((json && json.detail) || (label + ' rate-limited (HTTP 429) via the secure proxy \u2014 shared no-key pool exhausted; try again later'));
+      er.code = 'RATE_LIMIT';
+      throw er;
+    }
+    if (!res.ok || !json || !json.ok || !Array.isArray(json.items)) {
+      var eu = new Error((json && json.detail) || (label + ' via the secure proxy failed (HTTP ' + res.status + ')'));
+      eu.code = 'UPSTREAM';
+      throw eu;
+    }
+    return json.items.map(function (it) {
+      return { name: it.name, url: it.url || null, type: 'academic', verified: false, tier: 'high', text: it.text || '' };
+    }).filter(function (d) { return d.text.trim().length > 10; });
+  }
+
+  async function crossrefCorpusDirect(sentence) {
     var f = fetchImpl();
     var url = 'https://api.crossref.org/works?rows=5&select=title,abstract,URL,DOI&query.bibliographic=' +
       encodeURIComponent(sentence);
-    var res = await f(url, { headers: { 'Accept': 'application/json' } });
-    if (!res.ok) throw new Error('Crossref HTTP ' + res.status);
-    var json = await res.json();
-    var items = (json.message && json.message.items) || [];
-    return items.map(function (it) {
-      var title = (it.title && it.title[0]) || 'Untitled work';
-      return {
-        name: title, url: it.URL || (it.DOI ? 'https://doi.org/' + it.DOI : null),
-        type: 'academic', verified: false, tier: 'high', // title/abstract only, not full text
-        text: title + '. ' + stripTags(it.abstract || '')
-      };
-    }).filter(function (d) { return d.text.trim().length > 10; });
+    var lastErr = null;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      if (attempt) await sleep(1500);
+      var res;
+      try { res = await f(url, { headers: { 'Accept': 'application/json' } }); }
+      catch (netErr) { lastErr = new Error('Crossref network error \u2014 the request did not reach Crossref (the browser reported "Failed to fetch")'); continue; }
+      if (res.ok) {
+        var json = await res.json();
+        var items = (json.message && json.message.items) || [];
+        return items.map(function (it) {
+          var title = (it.title && it.title[0]) || 'Untitled work';
+          return {
+            name: title, url: it.URL || (it.DOI ? 'https://doi.org/' + it.DOI : null),
+            type: 'academic', verified: false, tier: 'high', // title/abstract only, not full text
+            text: title + '. ' + stripTags(it.abstract || '')
+          };
+        }).filter(function (d) { return d.text.trim().length > 10; });
+      }
+      lastErr = new Error('Crossref HTTP ' + res.status);
+      if (res.status !== 429 && res.status < 500) throw lastErr;
+    }
+    throw lastErr;
+  }
+
+  async function crossrefCorpusForSentence(sentence) {
+    try { return await academicCorpusViaWorker('crossref', sentence, 'Crossref'); }
+    catch (e) { if (e.code !== 'WORKER_UNAVAILABLE') throw e; }
+    return crossrefCorpusDirect(sentence);
+  }
+
+  async function semanticScholarCorpusDirect(sentence) {
+    var f = fetchImpl();
+    var url = 'https://api.semanticscholar.org/graph/v1/paper/search?limit=5&fields=title,abstract,tldr,url&query=' +
+      encodeURIComponent(sentence);
+    var lastErr = null;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      if (attempt) await sleep(1500);
+      var res;
+      try { res = await f(url, { headers: { 'Accept': 'application/json' } }); }
+      catch (netErr) { lastErr = new Error('Semantic Scholar network error \u2014 the request did not reach Semantic Scholar (the browser reported "Failed to fetch")'); continue; }
+      if (res.status === 429) {
+        var err = new Error('Semantic Scholar rate-limited (HTTP 429) \u2014 shared no-key pool exhausted; try again later');
+        err.code = 'RATE_LIMIT';
+        throw err;
+      }
+      if (res.ok) {
+        var json = await res.json();
+        var data = json.data || [];
+        return data.map(function (p) {
+          var text = (p.title || '') + '. ' + (p.abstract || '') + ' ' + ((p.tldr && p.tldr.text) || '');
+          return { name: p.title || 'Untitled paper', url: p.url || null, type: 'academic', verified: false, tier: 'high', text: text };
+        }).filter(function (d) { return d.text.trim().length > 10; });
+      }
+      lastErr = new Error('Semantic Scholar HTTP ' + res.status);
+      if (res.status < 500) throw lastErr;
+    }
+    throw lastErr;
   }
 
   // ---------------- Source B: Semantic Scholar (throttled) ----------------
@@ -130,22 +228,9 @@
     var wait = 1100 - (Date.now() - s2LastCall);
     if (wait > 0) await sleep(wait);
     s2LastCall = Date.now();
-    var f = fetchImpl();
-    var url = 'https://api.semanticscholar.org/graph/v1/paper/search?limit=5&fields=title,abstract,tldr,url&query=' +
-      encodeURIComponent(sentence);
-    var res = await f(url, { headers: { 'Accept': 'application/json' } });
-    if (res.status === 429) {
-      var err = new Error('Semantic Scholar rate-limited (HTTP 429) \u2014 shared no-key pool exhausted; try again later');
-      err.code = 'RATE_LIMIT';
-      throw err;
-    }
-    if (!res.ok) throw new Error('Semantic Scholar HTTP ' + res.status);
-    var json = await res.json();
-    var data = json.data || [];
-    return data.map(function (p) {
-      var text = (p.title || '') + '. ' + (p.abstract || '') + ' ' + ((p.tldr && p.tldr.text) || '');
-      return { name: p.title || 'Untitled paper', url: p.url || null, type: 'academic', verified: false, tier: 'high', text: text };
-    }).filter(function (d) { return d.text.trim().length > 10; });
+    try { return await academicCorpusViaWorker('semantic-scholar', sentence, 'Semantic Scholar'); }
+    catch (e) { if (e.code !== 'WORKER_UNAVAILABLE') throw e; }
+    return semanticScholarCorpusDirect(sentence);
   }
 
   // ---------------- Source D: whole web via the secure proxy Worker ----------------
@@ -451,6 +536,7 @@
     semanticScholarCorpusForSentence: semanticScholarCorpusForSentence,
     WORKER_URL: WORKER_URL, workerConfigured: workerConfigured,
     buildWorkerRequest: buildWorkerRequest, webCorpusForSentence: webCorpusForSentence,
+    buildAcademicRequest: buildAcademicRequest,
     buildFetchRequest: buildFetchRequest, fetchPageText: fetchPageText,
     normalizeUrl: normalizeUrl,
     runWikipediaStage: runWikipediaStage, runAcademicStage: runAcademicStage, runWebStage: runWebStage,
